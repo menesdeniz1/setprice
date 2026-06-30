@@ -1,0 +1,11 @@
+domain: "amazon.com.tr"
+seller_name: "Amazon"
+render: true
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: "#corePrice_feature_div .a-offscreen"
+  - type: "css"
+    selector: "span.a-offscreen"

@@ -1,0 +1,13 @@
+domain: "tebilon.com"
+seller_name: "Tebilon"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "css"
+    selector: ".product-price"
+  - type: "css"
+    selector: "[class*='price']"

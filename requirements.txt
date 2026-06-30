@@ -1,0 +1,17 @@
+openpyxl>=3.1.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+cloudscraper>=1.2.71
+playwright>=1.40.0
+tenacity>=8.2.0
+loguru>=0.7.0
+pyyaml>=6.0
+pytest>=7.4.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+sqlalchemy>=2.0.28
+redis>=5.0.3
+celery>=5.3.6
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4

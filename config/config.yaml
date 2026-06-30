@@ -1,0 +1,172 @@
+# =====================================================================
+#  FİYAT BOTU — ANA AYAR DOSYASI
+#  Tek doğruluk kaynağı (single source of truth) modeli
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# DOSYA YOLLARI
+# ---------------------------------------------------------------------
+paths:
+  workbook: "./data/pc_setup.xlsx"   # üzerinde çalışılacak ana kitap
+  backups_dir: "./data/backups"        # her yazımdan önce zaman damgalı yedek buraya
+  reports_dir: "./data/reports"        # flagged.csv, failed.csv, unmatched.csv, akakce_cache.json
+  logs_dir: "./logs"
+  checkpoint_db: "./data/checkpoints/state.sqlite" # SQLite resume veritabanı
+
+# ---------------------------------------------------------------------
+# ÇALIŞMA KİTABI YAPISI
+#   Kaynaklar  -> tüm linklerin yazıldığı TEK yer (bot fiyatı buraya yazar)
+#   Katalog    -> ürün başına çözülmüş en ucuz fiyat (setup'lar buraya bakar)
+#   Muadiller  -> alternatif/muadil ürünler (Akakçe)
+#   Geçmiş     -> her başarılı çekimin log'u (fiyat takibi için)
+#   Setup'lar  -> 139k, 146k... bot bunlara ASLA dokunmaz, sadece formül okur
+# ---------------------------------------------------------------------
+workbook:
+  sources_sheet: "Kaynaklar"
+  catalog_sheet: "Katalog"
+  alternatives_sheet: "Muadiller"
+  history_sheet: "Fiyat_Gecmisi"
+
+  # Bot YALNIZCA bu sayfalara yazar. Geri kalan her sayfa (setup'lar)
+  # dokunulmadan korunur.
+  writable_sheets: ["Kaynaklar", "Katalog", "Muadiller", "Fiyat_Gecmisi"]
+
+  # Kaynaklar sayfasındaki sütun başlıkları (1. satır başlık kabul edilir).
+  sources_columns:
+    product:     "Ürün"          # kanonik ürün adı (Katalog ile birebir aynı olmalı)
+    category:    "Çeşit"         # İşlemci / Ekran Kartı / RAM ... (kanonik)
+    seller:      "Satıcı"        # Amazon, Hepsiburada, Tebilon...
+    link:        "Link"          # ürün URL'i  -> botun çekeceği adres
+    price:       "Fiyat"         # BOT YAZAR
+    installment: "Taksit"        # opsiyonel, bot dokunmaz (manuel)
+    updated:     "Son Güncelleme" # BOT YAZAR (zaman damgası)
+    status:      "Durum"         # BOT YAZAR: OK / STALE / FAILED / FLAGGED
+    active:      "Aktif"         # SEN YÖNETİRSİN: Evet/Hayır (Hayır = atla)
+    lock:        "Kilit"         # SEN YÖNETİRSİN: Evet = elle girdim, EZME
+
+  catalog_columns:
+    product:        "Ürün"
+    category:       "Çeşit"
+    best_price:     "En Ucuz Fiyat"
+    best_seller:    "En Ucuz Satıcı"
+    best_link:      "Link"
+    updated:        "Son Güncelleme"
+    search_term:    "Arama Terimi"
+    trend:          "Trend"
+
+  alternatives_columns:
+    product:        "Ürün"
+    search_term:    "Arama Terimi"
+    rank:           "#"
+    alt_product:    "Muadil Ürün"
+    alt_price:      "Fiyat"
+    alt_seller:     "Satıcı"
+    alt_link:       "Link"
+    updated:        "Son Güncelleme"
+
+# ---------------------------------------------------------------------
+# KATEGORİ KANONİKLEŞTİRME
+# ---------------------------------------------------------------------
+category_aliases:
+  "CPU": "İşlemci"
+  "RAM": "RAM"
+  "SSD": "SSD"
+  "PSU": "Güç Kaynağı"
+
+# ---------------------------------------------------------------------
+# MIGRATION AYARLARI
+# ---------------------------------------------------------------------
+migration:
+  skip_product_patterns: ["Total", "Toplam", "karar"]
+  setup_formula_style: "index_match"
+  header_row: 3
+  data_start_row: 5
+
+# ---------------------------------------------------------------------
+# EŞLEŞTİRME / GRUPLAMA
+# ---------------------------------------------------------------------
+matching:
+  strategy: "exact_product_name"
+  case_sensitive: false
+  trim_whitespace: true
+
+# ---------------------------------------------------------------------
+# FİYAT NORMALİZASYONU
+# ---------------------------------------------------------------------
+price_parsing:
+  currency_symbols: ["₺", "TL", "TRY", "tl"]
+  strip_chars: ["*", "~", " "]
+  strip_parenthetical_notes: true
+  default_currency: "TRY"
+
+# ---------------------------------------------------------------------
+# SENİN ELLE KOYDUĞUN KARARLARA SAYGI  (çok önemli)
+# ---------------------------------------------------------------------
+respect_manual:
+  skip_if_locked: true
+  skip_if_price_starts_with: ["*"]
+  skip_if_has_parenthetical: true
+  skip_if_inactive: true
+  owned_keywords: ["Mevcut", "Var"]
+  hold_keywords: ["Alınmayacak", "Beklemede"]
+
+# ---------------------------------------------------------------------
+# DOĞRULAMA / SANITY CHECK
+# ---------------------------------------------------------------------
+validation:
+  max_change_ratio: 5.0
+  min_change_ratio: 0.2
+  min_valid_price: 1.0
+  flag_instead_of_write: true
+
+# ---------------------------------------------------------------------
+# SCRAPING DAVRANIŞI
+# ---------------------------------------------------------------------
+scraping:
+  request_timeout_sec: 25
+  retries: 3
+  backoff_base_sec: 2
+  delay_between_requests_sec: [2, 5]
+  per_domain_delay: true
+  respect_robots_txt: true
+  cloudscraper_fallback: true
+  max_workers: 5                      # Paralel istek çalışan sayısı
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+
+# ---------------------------------------------------------------------
+# AKAKÇE MUADİL ARAMA
+# ---------------------------------------------------------------------
+alternatives:
+  enabled: true
+  source: "akakce"
+  top_n: 3
+  delay_between_sec: [3, 6]
+  cache_hours: 24
+
+# ---------------------------------------------------------------------
+# LOG / RAPOR / YEDEK
+# ---------------------------------------------------------------------
+logging:
+  level: "INFO"
+  rotate_mb: 10
+  keep_backups: 5
+
+reports:
+  write_failed: true
+  write_flagged: true
+  write_unmatched: true
+
+backups:
+  max_count: 10
+
+# ---------------------------------------------------------------------
+# BİLDİRİM / WEBHOOK AYARLARI
+# ---------------------------------------------------------------------
+notifications:
+  discord_webhook_url: ""
+  telegram_token: ""
+  telegram_chat_id: ""
+

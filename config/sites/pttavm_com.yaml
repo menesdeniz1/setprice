@@ -1,0 +1,12 @@
+domain: "pttavm.com"
+seller_name: "PttAVM"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "meta"
+    attribute: "itemprop"
+    value: "price"

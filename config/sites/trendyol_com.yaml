@@ -1,0 +1,19 @@
+# Trendyol  (6 link)
+# Next.js -> fiyat çoğu zaman __NEXT_DATA__ JSON'unda veya JSON-LD'de.
+# .prc-dsc (indirimli fiyat) klasik CSS fallback'tir.
+domain: "trendyol.com"
+seller_name: "Trendyol"
+currency: "TRY"
+render: true
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: "span.prc-dsc"          # indirimli/sepet fiyatı
+  - type: "css"
+    selector: "div.product-price-container .prc-dsc"
+  - type: "meta"
+    selector: 'meta[property="product:price:amount"]'
+
+notes: "Yorumlar/boutique parametreli URL'lerde de ürün fiyatı aynı selector'dan gelir."

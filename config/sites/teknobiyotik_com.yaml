@@ -1,0 +1,11 @@
+domain: "teknobiyotik.com"
+seller_name: "Teknobiyotik"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "css"
+    selector: ".product-price"

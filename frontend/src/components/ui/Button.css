@@ -1,0 +1,119 @@
+.sp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  line-height: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.sp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sp-btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Sizes */
+.sp-btn--sm {
+  font-size: var(--text-xs);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.sp-btn--md {
+  font-size: var(--text-sm);
+  padding: 9px 18px;
+}
+
+.sp-btn--lg {
+  font-size: var(--text-base);
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+}
+
+.sp-btn--full {
+  width: 100%;
+}
+
+/* Primary */
+.sp-btn--primary {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-sm), 0 0 0 0 rgba(99, 102, 241, 0);
+}
+
+.sp-btn--primary:not(:disabled):hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
+  filter: brightness(1.1);
+}
+
+/* Secondary */
+.sp-btn--secondary {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.sp-btn--secondary:not(:disabled):hover {
+  background: var(--color-bg-surface-hover);
+  border-color: var(--color-border-active);
+  color: var(--color-primary-hover);
+}
+
+/* Ghost */
+.sp-btn--ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: transparent;
+}
+
+.sp-btn--ghost:not(:disabled):hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+/* Danger */
+.sp-btn--danger {
+  background: var(--color-danger-muted);
+  color: var(--color-danger);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.sp-btn--danger:not(:disabled):hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Success */
+.sp-btn--success {
+  background: var(--gradient-success);
+  color: white;
+  border: none;
+}
+
+.sp-btn--success:not(:disabled):hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow-success);
+  filter: brightness(1.1);
+}
+
+/* Spinner */
+.sp-btn__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}

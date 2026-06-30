@@ -1,0 +1,11 @@
+domain: "mediamarkt.com.tr"
+seller_name: "MediaMarkt"
+render: true
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "css"
+    selector: "[data-test='product-price']"

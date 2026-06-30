@@ -1,0 +1,11 @@
+domain: "idefix.com"
+seller_name: "İdefix"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "css"
+    selector: ".product-price"

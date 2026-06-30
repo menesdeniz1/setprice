@@ -1,0 +1,11 @@
+domain: "ucuzbudur.com"
+seller_name: "Ucuzbudur"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "css"
+    selector: "[class*='fiyat']"

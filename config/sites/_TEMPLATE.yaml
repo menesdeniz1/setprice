@@ -1,0 +1,31 @@
+# =====================================================================
+#  YENİ SİTE ŞABLONU  —  kopyala, adını site adı yap (örn. tebilon_com.yaml)
+# =====================================================================
+# Geriye kalan siteler (tebilon, pttavm, ucuzbudur, mediamarkt, idefix,
+# teknobiyotik, wraithesports) bu şablonla 2 dakikada eklenir.
+#
+# EN SAĞLAM YÖNTEM — önce JSON-LD dene:
+#   Sayfada Ctrl+U (kaynağı gör) -> "application/ld+json" ara.
+#   İçinde "offers": { "price": "1234.56" } görürsen, JSON-LD yeter, CSS'e gerek yok.
+#   Çoğu Türk e-ticaret sitesi (Google Shopping için) bunu içerir.
+#
+# JSON-LD yoksa CSS'e düş:
+#   Fiyata sağ tıkla -> İncele -> elementin class'ını al -> selector yaz.
+#
+# wraithesports = Shopify. Shopify'da JSON-LD HER ZAMAN vardır; sadece
+#   type: jsonld / path: offers.price yazman yeterli olur.
+
+domain: "ornek-site.com"          # www. YAZMA
+seller_name: "Örnek Satıcı"
+currency: "TRY"
+render: false                     # fiyat boş gelirse true yap (JS ile yükleniyordur)
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"            # DOĞRULA ve değiştir
+  - type: "meta"
+    selector: 'meta[itemprop="price"]'
+
+notes: ""

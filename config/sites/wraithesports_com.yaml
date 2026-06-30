@@ -1,0 +1,12 @@
+domain: "wraithesports.com"
+seller_name: "WraithEsports"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: ".price"
+  - type: "meta"
+    attribute: "property"
+    value: "product:price:amount"

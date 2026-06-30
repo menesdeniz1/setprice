@@ -1,0 +1,19 @@
+# Hepsiburada  (12 link)
+# React ağırlıklı sayfa -> render:true ile başlamak güvenli.
+# JSON-LD genelde mevcuttur ve CSS değişse bile bozulmaz (birincil yöntem).
+domain: "hepsiburada.com"
+seller_name: "Hepsiburada"
+currency: "TRY"
+render: true
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: '[data-test-id="price-current-price"]'   # DOĞRULA: sağ tık > İncele
+  - type: "css"
+    selector: 'span[data-bind*="price"]'
+  - type: "meta"
+    selector: 'meta[itemprop="price"]'
+
+notes: "Fiyat boş gelirse önce render:true olduğundan emin ol, sonra CSS'i güncelle."

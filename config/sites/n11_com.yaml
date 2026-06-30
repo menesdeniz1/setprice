@@ -1,0 +1,18 @@
+# n11  (10 link)
+# Genelde sunucu tarafında render edilir -> render:false ile başla.
+domain: "n11.com"
+seller_name: "n11"
+currency: "TRY"
+render: false
+
+extraction:
+  - type: "jsonld"
+    path: "offers.price"
+  - type: "css"
+    selector: "div.newPrice ins"      # güncel/indirimli fiyat
+  - type: "css"
+    selector: ".unf-p-summary-price .newPrice"
+  - type: "meta"
+    selector: 'meta[itemprop="price"]'
+
+notes: "Mağaza (?magaza=) parametresi fiyatı etkileyebilir; URL'i olduğu gibi kullan."
