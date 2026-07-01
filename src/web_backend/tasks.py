@@ -315,6 +315,29 @@ def periodic_library_scan_celery_task():
     run_library_scan()
 
 
+def run_ai_decisions():
+    """Tüm kütüphane ürünleri için AI karar motorunu çalıştırır. Fiyatları
+    yeniden çekmez — sadece DB'deki güncel fiyat/geçmiş üzerinden karar
+    üretir. Günde bir kez çalışacak şekilde tasarlandı (ücretsiz API
+    kotalarını korumak için)."""
+    db: Session = SessionLocal()
+    config_loader = ConfigLoader()
+    logger = setup_logger(config_loader.load())
+
+    lib_ids = [lp.id for lp in db.query(models.LibraryProduct).all()]
+    if lib_ids:
+        logger.info(f"[AI Decisions] Günlük AI karar üretimi başladı ({len(lib_ids)} ürün)...")
+        crud.update_ai_decisions(db, lib_ids)
+        logger.info("[AI Decisions] Günlük AI karar üretimi tamamlandı")
+
+    db.close()
+
+
+@celery_app.task
+def daily_ai_decision_task():
+    run_ai_decisions()
+
+
 # USE_CELERY=true ise periyodik kütüphane taraması Celery Beat üzerinden
 # çalışır (bu, ayrı bir `celery -A src.web_backend.tasks beat` process'i
 # gerektirir). USE_CELERY kapalıysa main.py'deki asyncio tabanlı döngü
@@ -324,5 +347,9 @@ if os.environ.get("USE_CELERY", "false").lower() == "true":
         "periodic-library-scan": {
             "task": "src.web_backend.tasks.periodic_library_scan_celery_task",
             "schedule": 600.0,  # 10 dakika
+        },
+        "daily-ai-decisions": {
+            "task": "src.web_backend.tasks.daily_ai_decision_task",
+            "schedule": 86400.0,  # 24 saat
         },
     }

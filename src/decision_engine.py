@@ -5,7 +5,7 @@ AI Shopping Intelligence — Decision Engine v2
 Ürün = canlı varlık. Fiyat = hikaye. Karar = zaman.
 Bu motor fiyat takip etmez; doğru alım zamanını hesaplar.
 """
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import datetime
 import re
 import random
@@ -14,13 +14,16 @@ import statistics
 
 class DecisionEngine:
     """
-    Karar Motoru — her ürün için:
+    Fiyat/değer hesaplama yardımcıları — her ürün için:
     1. Trend analizi (yükseliş/düşüş/stabil)
     2. Dip bölge tespiti (tarihsel minimum'a yakınlık)
     3. Bull-trap (sahte indirim) dedektörü
     4. Value Score (benchmark karşılaştırması)
     5. Satisfaction Score (rating + review güvenilirliği)
-    6. Final sinyal: BUY / WAIT / AVOID + reasoning text
+
+    Nihai BUY/WAIT/AVOID kararı ve gerekçe metni artık burada değil,
+    src/ai_decision_engine.py'de üretiliyor — bu sınıf ona zemin
+    hazırlayan hesaplanmış sinyalleri sağlar.
     """
 
     # ── Trend Analizi ──────────────────────────────────────────────
@@ -173,76 +176,6 @@ class DecisionEngine:
             return round((base_score + 50) / 2, 1)
 
         return round(base_score, 1)
-
-    # ── Sinyal Üretimi + Reasoning ─────────────────────────────────
-
-    def generate_signal(
-        self,
-        current_price: float,
-        history: List[float],
-        benchmark_price: Optional[float],
-        rating: Optional[float] = None,
-        review_count: Optional[int] = None,
-    ) -> Tuple[str, float, float, str]:
-        """
-        Final karar üretir.
-        Returns: (signal, value_score, satisfaction_score, reasoning_text)
-        """
-        value = self.calculate_value_score(current_price, benchmark_price)
-        satisfaction = self.calculate_satisfaction_score(rating, review_count)
-        is_bull_trap = self.detect_bull_trap(current_price, history)
-        trend = self.analyze_trend(history)
-        bottom = self.detect_bottom_zone(current_price, history)
-
-        reasons = []
-
-        # ── AVOID ──
-        if satisfaction < 50:
-            reasons.append(f"Kullanıcı memnuniyeti düşük ({satisfaction:.0f}/100)")
-            if value < 40:
-                reasons.append(f"Fiyat/değer oranı da kötü ({value:.0f}/100)")
-            return "AVOID", value, satisfaction, " · ".join(reasons)
-
-        # ── WAIT (bull-trap) ──
-        if is_bull_trap:
-            reasons.append("Sahte indirim tespit edildi (bull-trap)")
-            reasons.append("Fiyat şişirilip ardından düşürülmüş ama hâlâ medyanın üstünde")
-            return "WAIT", value, satisfaction, " · ".join(reasons)
-
-        # ── WAIT (pahalı) ──
-        if value < 40:
-            reasons.append(f"Piyasa ortalamasının üstünde fiyatlanmış (Value: {value:.0f}/100)")
-            if trend["direction"] == "down":
-                reasons.append("Fiyat düşüş trendinde, beklemek mantıklı")
-            return "WAIT", value, satisfaction, " · ".join(reasons)
-
-        # ── BUY ──
-        if value >= 60 and satisfaction >= 65:
-            if bottom["is_near_bottom"]:
-                reasons.append(f"Tarihsel dip bölgede (alt %{bottom['percentile']:.0f})")
-            if trend["direction"] == "down":
-                reasons.append("Düşüş trendi devam ediyor, dip oluşabilir")
-                if value >= 70:
-                    reasons.append(f"Güçlü değer avantajı ({value:.0f}/100)")
-                    return "BUY", value, satisfaction, " · ".join(reasons)
-                return "WAIT", value, satisfaction, " · ".join(reasons)
-            if trend["direction"] == "stable" or trend["direction"] == "up":
-                reasons.append(f"Fiyat stabil/yükselişte, değer hâlâ iyi ({value:.0f}/100)")
-                if bottom["is_near_bottom"]:
-                    reasons.append("Dip bölge + stabil trend = güçlü alım sinyali")
-                if satisfaction >= 75:
-                    reasons.append(f"Yüksek kullanıcı memnuniyeti ({satisfaction:.0f}/100)")
-                return "BUY", value, satisfaction, " · ".join(reasons)
-
-        # ── Default: WAIT ──
-        if trend["direction"] == "down":
-            reasons.append("Fiyat düşüş trendinde, daha uygun fiyat beklenebilir")
-        elif trend["direction"] == "up":
-            reasons.append("Fiyat yükselişte ama henüz güçlü alım sinyali yok")
-        else:
-            reasons.append("Fiyat stabil, net bir fırsat sinyali oluşmadı")
-        reasons.append(f"Value: {value:.0f}/100 · Memnuniyet: {satisfaction:.0f}/100")
-        return "WAIT", value, satisfaction, " · ".join(reasons)
 
     # ── Ticker Üretimi ─────────────────────────────────────────────
 

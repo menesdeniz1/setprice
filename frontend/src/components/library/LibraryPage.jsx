@@ -1,19 +1,42 @@
 import './LibraryPage.css';
-import { useState, useEffect } from 'react';
-import { getLibraryProducts, getLibraryCategories, scanAllLibraryProducts, scanLibraryProduct, deleteLibraryProduct, addLibraryProduct } from '../../api/client';
+import { useState, useEffect, useMemo } from 'react';
+import { getLibraryProducts, scanAllLibraryProducts, scanLibraryProduct, deleteLibraryProduct, addLibraryProduct } from '../../api/client';
 import { formatPrice, formatRelativeTime } from '../../utils/formatPrice';
+import { stringSimilarity } from '../../utils/similarity';
 import { RefreshCw, Loader2, Search, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react';
 import Button from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
 import SignalBadge from '../products/SignalBadge';
 import ScoreRing from '../ui/ScoreRing';
 
+const DEDUP_SIMILARITY_THRESHOLD = 0.93;
+
+// Tam string eşleşmesi yerine bulanık (fuzzy) benzerlik: "bir harf farklı"
+// gibi küçük yazım farkları da aynı ürün olarak gruplanır. Aynı satıcıdan
+// birden fazla eşleşmede en ucuz varyant tutulur.
+function dedupeProducts(list) {
+  const groups = [];
+  for (const p of list) {
+    const name = (p.name || '').trim();
+    const existing = groups.find(g => stringSimilarity(name, g.name) >= DEDUP_SIMILARITY_THRESHOLD);
+    if (!existing) {
+      groups.push({ name, product: p });
+    } else {
+      const currentPrice = existing.product.current_price || Infinity;
+      const newPrice = p.current_price || Infinity;
+      if (newPrice < currentPrice) {
+        existing.product = p;
+      }
+    }
+  }
+  return groups.map(g => g.product);
+}
+
 export default function LibraryPage() {
   const [category, setCategory] = useState('');
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [categories, setCategories] = useState([]);
   const [isScanningAll, setIsScanningAll] = useState(false);
   const [scanningIds, setScanningIds] = useState(new Set());
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -33,14 +56,8 @@ export default function LibraryPage() {
   }, [groupDuplicates]);
 
   useEffect(() => {
-    getLibraryCategories().then(data => {
-      setCategories(Array.isArray(data) ? data : []);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     loadProducts();
-  }, [category]);
+  }, []);
 
   // Global background scan polling
   useEffect(() => {
@@ -74,7 +91,7 @@ export default function LibraryPage() {
   const loadProducts = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const data = await getLibraryProducts(category || undefined);
+      const data = await getLibraryProducts();
       const newProducts = Array.isArray(data) ? data : [];
       setLoadError(false);
 
@@ -181,9 +198,6 @@ export default function LibraryPage() {
       toast.success("Ürün kütüphaneye başarıyla eklendi");
       setNewProductLink('');
       loadProducts();
-      getLibraryCategories().then(data => {
-        setCategories(Array.isArray(data) ? data : []);
-      }).catch(() => {});
     } catch (err) {
       toast.error(err.message || "Ürün eklenemedi, linki kontrol edin");
     } finally {
@@ -195,6 +209,22 @@ export default function LibraryPage() {
     if (sortField !== field) return null;
     return sortDir === 'asc' ? <ArrowUp size={12} style={{marginLeft: 4}}/> : <ArrowDown size={12} style={{marginLeft: 4}}/>;
   };
+
+  // Kategori pillerinin sayıları — "Tekilleştir" açıkken tekilleştirilmiş
+  // sayıyı gösterir, kapalıyken ham sayıyı.
+  const { categoryList, totalCount } = useMemo(() => {
+    const list = Array.isArray(products) ? products : [];
+    const base = groupDuplicates ? dedupeProducts(list) : list;
+    const counts = {};
+    for (const p of base) {
+      const cat = p.category || 'Diğer';
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return {
+      categoryList: Object.keys(counts).sort().map(name => ({ name, count: counts[name] })),
+      totalCount: base.length,
+    };
+  }, [products, groupDuplicates]);
 
   return (
     <div className="sp-library animate-fade-in">
@@ -248,41 +278,27 @@ export default function LibraryPage() {
           className={`sp-library__filter-btn ${category === '' ? 'sp-library__filter-btn--active' : ''}`}
           onClick={() => setCategory('')}
         >
-          Tümü
+          Tümü <span className="sp-library__filter-count">({totalCount})</span>
         </button>
-        {Array.isArray(categories) && categories.map(cat => {
-          const catName = typeof cat === 'string' ? cat : cat.name;
-          const catCount = typeof cat === 'string' ? null : cat.count;
-          return (
-            <button
-              key={catName}
-              className={`sp-library__filter-btn ${category === catName ? 'sp-library__filter-btn--active' : ''}`}
-              onClick={() => setCategory(catName)}
-            >
-              {catName} {catCount != null ? <span className="sp-library__filter-count">({catCount})</span> : ''}
-            </button>
-          );
-        })}
+        {categoryList.map(cat => (
+          <button
+            key={cat.name}
+            className={`sp-library__filter-btn ${category === cat.name ? 'sp-library__filter-btn--active' : ''}`}
+            onClick={() => setCategory(prev => prev === cat.name ? '' : cat.name)}
+          >
+            {cat.name} <span className="sp-library__filter-count">({cat.count})</span>
+          </button>
+        ))}
       </div>
 
       {/* Products table */}
       {(() => {
         let displayProducts = Array.isArray(products) ? products : [];
+        if (category) {
+          displayProducts = displayProducts.filter(p => (p.category || 'Diğer') === category);
+        }
         if (groupDuplicates) {
-          const grouped = {};
-          for (const p of displayProducts) {
-            const key = (p.name || '').trim().toLowerCase();
-            if (!grouped[key]) {
-              grouped[key] = p;
-            } else {
-              const currentPrice = grouped[key].current_price || Infinity;
-              const newPrice = p.current_price || Infinity;
-              if (newPrice < currentPrice) {
-                grouped[key] = p;
-              }
-            }
-          }
-          displayProducts = Object.values(grouped);
+          displayProducts = dedupeProducts(displayProducts);
         }
 
         if (searchQuery.trim()) {
@@ -408,6 +424,9 @@ export default function LibraryPage() {
                       {p.decision_reasoning && (
                         <div className="sp-library__asset-reasoning">
                           {p.decision_reasoning}
+                          {p.ai_decision_updated_at && (
+                            <span className="sp-library__asset-reasoning-time"> · {formatRelativeTime(p.ai_decision_updated_at)}</span>
+                          )}
                         </div>
                       )}
                     </div>

@@ -299,7 +299,18 @@ def get_alternatives_by_product(db: Session, product_id: int) -> List[models.Alt
         return []
     return db.query(models.Alternative).filter(models.Alternative.library_product_id == db_product.library_product_id).order_by(models.Alternative.price.asc()).all()
 
+def _compute_benchmark_price(db_lib: models.LibraryProduct) -> Optional[float]:
+    """Aynı ürün, farklı satıcı eşleşmelerinin ortalaması (elma-elma kıyas),
+    yoksa tüm muadillere düşer."""
+    same_product_prices = [a.price for a in db_lib.alternatives if a.price and (a.match_type or "similar") == "same_product"]
+    alts = same_product_prices or [a.price for a in db_lib.alternatives if a.price]
+    return sum(alts) / len(alts) if alts else None
+
+
 def update_decision_signals(db: Session, library_product_ids: List[int]) -> None:
+    """Her taramada çalışır: performans skoru (PassMark eşleştirme) ve fiyat
+    bazlı erken uyarılar (hedef fiyat, bull-trap, dip bölge). Nihai
+    BUY/WAIT/AVOID kararı artık burada üretilmiyor — bkz. update_ai_decisions()."""
     import sys, os
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     try:
@@ -313,21 +324,8 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
         if not db_lib:
             continue
 
-        old_signal = db_lib.decision_signal
-        old_price = db_lib.current_price
-
-        # Gerçek history
         history = [h.price for h in db_lib.history]
-
-        # Benchmark: önce "aynı ürün, farklı satıcı" eşleşmelerinin ortalaması
-        # (elma-elma kıyas), yoksa tüm muadillere düş
-        same_product_prices = [a.price for a in db_lib.alternatives if a.price and (a.match_type or "similar") == "same_product"]
-        alts = same_product_prices or [a.price for a in db_lib.alternatives if a.price]
-        benchmark = sum(alts) / len(alts) if alts else None
-
-        # Gerçek rating/review (modelden, scraper tarafından doldurulacak)
-        rating = db_lib.rating
-        review_count = db_lib.review_count
+        db_lib.benchmark_price = _compute_benchmark_price(db_lib)
 
         # Performans skoru (CPU/GPU gibi kategoriler için, benchmark_utils'teki
         # küratörlü başlangıç veri setine göre)
@@ -339,22 +337,6 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
         else:
             db_lib.benchmark_match_name = None
             db_lib.performance_score = None
-
-        # generate_signal artık 4 değer döndürüyor (signal, v_score, s_score, reasoning)
-        result = engine.generate_signal(
-            current_price=db_lib.current_price or 0.0,
-            history=history,
-            benchmark_price=benchmark,
-            rating=rating,
-            review_count=review_count
-        )
-        signal, v_score, s_score, reasoning = result
-
-        db_lib.decision_signal = signal
-        db_lib.value_score = v_score
-        db_lib.satisfaction_score = s_score
-        db_lib.benchmark_price = benchmark
-        db_lib.decision_reasoning = reasoning
 
         # ── Alert Üretimi ──
 
@@ -368,17 +350,7 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
                 message=f"Fiyat hedef seviyenin ({db_lib.price_alert_threshold:.0f}₺) altına düştü: {db_lib.current_price:.0f}₺"
             )
 
-        # 2) Signal Change Alert (önceki sinyalden farklıysa)
-        if old_signal and old_signal != signal:
-            emoji = {"BUY": "🟢", "WAIT": "🟡", "AVOID": "🔴"}.get(signal, "")
-            _create_alert_if_not_exists(
-                db, db_lib.user_id, lp_id,
-                alert_type="SIGNAL_CHANGE",
-                title=f"Sinyal Değişimi: {db_lib.name}",
-                message=f"{old_signal} → {signal} {emoji} | {reasoning}"
-            )
-
-        # 3) Bull-trap Alert
+        # 2) Bull-trap Alert
         if engine.detect_bull_trap(db_lib.current_price or 0, history):
             _create_alert_if_not_exists(
                 db, db_lib.user_id, lp_id,
@@ -387,7 +359,7 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
                 message=f"Bu üründe sahte indirim (bull-trap) tespit edildi. Fiyat şişirilip düşürülmüş."
             )
 
-        # 4) Trend Dip Alert
+        # 3) Trend Dip Alert
         bottom = engine.detect_bottom_zone(db_lib.current_price or 0, history)
         if bottom["is_near_bottom"] and len(history) >= 5:
             _create_alert_if_not_exists(
@@ -398,6 +370,59 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
             )
 
     db.commit()
+
+
+def update_ai_decisions(db: Session, library_product_ids: List[int]) -> None:
+    """Günde bir kez (Celery Beat) çalışır: her ürün için AI karar motorunu
+    çağırır. Bir ürün için tüm sağlayıcılar başarısız olursa o ürünün mevcut
+    decision_signal/decision_reasoning'i DB'de olduğu gibi bırakılır — boş
+    veya şablon bir yorumla ezilmez."""
+    import sys, os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    try:
+        from ai_decision_engine import generate_ai_decision, has_any_provider_configured
+    except Exception:
+        return
+
+    if not has_any_provider_configured():
+        return
+
+    for lp_id in library_product_ids:
+        db_lib = db.query(models.LibraryProduct).filter(models.LibraryProduct.id == lp_id).first()
+        if not db_lib:
+            continue
+
+        history = [h.price for h in db_lib.history]
+        benchmark = _compute_benchmark_price(db_lib)
+
+        result = generate_ai_decision({
+            "name": db_lib.name,
+            "category": db_lib.category,
+            "current_price": db_lib.current_price or 0.0,
+            "history": history,
+            "benchmark_price": benchmark,
+            "rating": db_lib.rating,
+            "review_count": db_lib.review_count,
+        })
+
+        if not result:
+            continue
+
+        old_signal = db_lib.decision_signal
+        db_lib.decision_signal = result["signal"]
+        db_lib.value_score = result["value_score"]
+        db_lib.decision_reasoning = result["reasoning"]
+        db_lib.ai_decision_updated_at = datetime.utcnow()
+        db.commit()
+
+        if old_signal and old_signal != result["signal"]:
+            emoji = {"BUY": "🟢", "WAIT": "🟡", "AVOID": "🔴"}.get(result["signal"], "")
+            _create_alert_if_not_exists(
+                db, db_lib.user_id, lp_id,
+                alert_type="SIGNAL_CHANGE",
+                title=f"Sinyal Değişimi: {db_lib.name}",
+                message=f"{old_signal} → {result['signal']} {emoji} | {result['reasoning']}"
+            )
 
 
 def _create_alert_if_not_exists(db: Session, user_id: int, lp_id: int, alert_type: str, title: str, message: str):

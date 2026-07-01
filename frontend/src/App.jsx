@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
@@ -18,6 +18,7 @@ function App() {
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [sets, setSets] = useState([]);
   const [setsLoading, setSetsLoading] = useState(false);
@@ -54,6 +55,15 @@ function App() {
   useEffect(() => {
     loadSets();
   }, [loadSets]);
+
+  // Dashboard'daki set kartları (toplam fiyat vb.) bir Set sayfasında yapılan
+  // değişikliklerden sonra bayat kalmasın diye, Dashboard'a her dönüşte
+  // setleri tazele.
+  useEffect(() => {
+    if (location.pathname === '/') {
+      loadSets();
+    }
+  }, [location.pathname]);
 
   const handleCreateSet = async (e) => {
     e.preventDefault();

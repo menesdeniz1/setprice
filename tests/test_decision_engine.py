@@ -29,21 +29,3 @@ def test_value_score():
     
     # Pahalı (kötü value)
     assert engine.calculate_value_score(120, 100) == 30.0
-    
-def test_generate_signal():
-    engine = DecisionEngine()
-
-    # BUY Senaryosu: İyi value, iyi satisfaction, bull trap yok
-    signal, v, s, reasoning = engine.generate_signal(80, [100, 90, 80], 100, 4.5, 50)
-    assert signal == "BUY"
-    assert reasoning
-
-    # WAIT Senaryosu: Sahte indirim var
-    signal, v, s, reasoning = engine.generate_signal(15000, [10000, 10000, 20000, 15000], 15000, 4.5, 50)
-    assert signal == "WAIT"
-    assert reasoning
-
-    # AVOID Senaryosu: Düşük satisfaction
-    signal, v, s, reasoning = engine.generate_signal(80, [100, 90, 80], 100, 1.5, 50)
-    assert signal == "AVOID"
-    assert reasoning

@@ -11,15 +11,59 @@
   flex-direction: column;
   z-index: 100;
   overflow: hidden;
+  transform: translateX(-100%);
+  transition: transform var(--transition-base);
+}
+
+.sp-sidebar--open {
+  transform: translateX(0);
 }
 
 /* Logo */
 .sp-sidebar__logo {
-  padding: var(--space-5) var(--space-5);
+  position: relative;
+  padding: var(--space-5) 40px var(--space-5) var(--space-5);
   display: flex;
   align-items: center;
   gap: var(--space-3);
   border-bottom: 1px solid var(--color-border);
+}
+
+.sp-sidebar__logo-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Positioned independently of the logo row's flex content so it can
+   never collide with the "Beta" badge or AlertBell when space is tight.
+   Vertically centered against the same row AlertBell sits in, so the two
+   line up exactly. */
+.sp-sidebar__collapse-btn {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.sp-sidebar__collapse-btn:hover {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .sp-sidebar__logo-icon {
@@ -168,44 +212,3 @@
   background: var(--color-danger-muted);
 }
 
-.sp-sidebar__mobile-close {
-  display: none;
-}
-
-/* --- Mobile Sidebar --- */
-@media (max-width: 768px) {
-  .sp-sidebar {
-    transform: translateX(-100%);
-    transition: transform var(--transition-base);
-    box-shadow: var(--shadow-lg);
-  }
-  
-  .sp-sidebar--open {
-    transform: translateX(0);
-  }
-
-  .sp-sidebar__overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--color-bg-overlay);
-    z-index: 95;
-    backdrop-filter: blur(2px);
-    animation: fadeIn var(--transition-fast) ease-out;
-  }
-
-  .sp-sidebar__mobile-close {
-    display: flex;
-    justify-content: flex-end;
-    padding: var(--space-4) var(--space-4) 0;
-  }
-
-  .sp-sidebar__mobile-close button {
-    background: none;
-    border: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-  }
-}

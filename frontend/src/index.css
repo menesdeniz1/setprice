@@ -117,6 +117,7 @@
 
   /* Layout */
   --sidebar-width: 260px;
+  --sidebar-rail-width: 48px;
   --topbar-height: 64px;
 }
 

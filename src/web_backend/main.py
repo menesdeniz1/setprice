@@ -4,6 +4,13 @@ import secrets
 import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
+from dotenv import load_dotenv
+
+# .env (varsa) — AI sağlayıcı key'leri gibi ortam değişkenlerini yükler.
+# Diğer modüller (tasks.py'deki REDIS_URL gibi) import sırasında os.environ
+# okuduğu için bu, tüm src.web_backend import'larından ÖNCE çalışmalı.
+load_dotenv()
+
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -43,19 +50,35 @@ async def periodic_library_scan():
         except Exception as e:
             print(f"[Periodic] Tarama hatası: {e}")
 
+async def periodic_ai_decisions():
+    # İlk çalıştırma kısa bir bekleme sonrası (kurulumu doğrulamak kolay olsun
+    # diye), sonrasında günde bir kez (86400 saniye).
+    await asyncio.sleep(120)
+    while True:
+        try:
+            print("[Periodic] Günlük AI karar üretimi başlatılıyor")
+            await asyncio.to_thread(tasks.run_ai_decisions)
+        except Exception as e:
+            print(f"[Periodic] AI karar hatası: {e}")
+        await asyncio.sleep(86400)
+
 USE_CELERY = os.environ.get("USE_CELERY", "false").lower() == "true"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup — USE_CELERY=true ise periyodik tarama Celery Beat'e devredilir
     # (bkz. tasks.py), burada tekrar başlatılmaz.
-    task = None
+    scan_task = None
+    ai_task = None
     if not USE_CELERY:
-        task = asyncio.create_task(periodic_library_scan())
+        scan_task = asyncio.create_task(periodic_library_scan())
+        ai_task = asyncio.create_task(periodic_ai_decisions())
     yield
     # Shutdown
-    if task:
-        task.cancel()
+    if scan_task:
+        scan_task.cancel()
+    if ai_task:
+        ai_task.cancel()
 
 app = FastAPI(title="SetPrice API", version="1.0.0", lifespan=lifespan)
 

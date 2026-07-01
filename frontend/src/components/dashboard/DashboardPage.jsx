@@ -1,6 +1,6 @@
 import './DashboardPage.css';
 import { MonitorSmartphone, TrendingDown, Package, Zap } from 'lucide-react';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice, formatRelativeTime } from '../../utils/formatPrice';
 import StatCard from '../ui/StatCard';
 import SetCard from './SetCard';
 
@@ -69,7 +69,14 @@ export default function DashboardPage({ sets = [], onNavigateToSet, onCreateSet 
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '12px', borderBottom: '1px solid var(--color-border)' }}>
                       <div style={{ flex: 1, paddingRight: '12px' }}>
                         <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', marginBottom: '4px' }} className="truncate">{p.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontStyle: 'italic', lineHeight: '1.3' }}>{p.decision_reasoning || 'Fiyat/Performans oranı çok yüksek.'}</div>
+                        {p.decision_reasoning && (
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontStyle: 'italic', lineHeight: '1.3' }}>
+                            {p.decision_reasoning}
+                            {p.ai_decision_updated_at && (
+                              <span style={{ color: 'var(--color-text-muted)', fontStyle: 'normal' }}> · {formatRelativeTime(p.ai_decision_updated_at)}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{formatPrice(p.current_price || p.locked_price || 0)}</div>
                     </div>
@@ -93,7 +100,14 @@ export default function DashboardPage({ sets = [], onNavigateToSet, onCreateSet 
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '12px', borderBottom: '1px solid var(--color-border)' }}>
                       <div style={{ flex: 1, paddingRight: '12px' }}>
                         <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--color-text-primary)', marginBottom: '4px' }} className="truncate">{p.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontStyle: 'italic', lineHeight: '1.3' }}>{p.decision_reasoning || 'Şu an aşırı pahalı bölgede.'}</div>
+                        {p.decision_reasoning && (
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontStyle: 'italic', lineHeight: '1.3' }}>
+                            {p.decision_reasoning}
+                            {p.ai_decision_updated_at && (
+                              <span style={{ color: 'var(--color-text-muted)', fontStyle: 'normal' }}> · {formatRelativeTime(p.ai_decision_updated_at)}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div style={{ fontWeight: '700', fontSize: '14px', color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{formatPrice(p.current_price || p.locked_price || 0)}</div>
                     </div>

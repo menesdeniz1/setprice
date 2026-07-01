@@ -1,7 +1,7 @@
 import './Sidebar.css';
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, X, Send, Activity, Bell } from 'lucide-react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, PanelLeftClose, Send, Activity, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AlertBell from '../ui/AlertBell';
 import NotificationSettingsModal from '../ui/NotificationSettingsModal';
@@ -25,29 +25,27 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && <div className="sp-sidebar__overlay" onClick={onClose} />}
-      
       <aside className={`sp-sidebar ${isOpen ? 'sp-sidebar--open' : ''}`}>
-        {/* Header (Mobile Close) */}
-        <div className="sp-sidebar__mobile-close">
-          <button onClick={onClose}><X size={20} /></button>
-        </div>
       {/* Logo */}
       <div className="sp-sidebar__logo">
-        <div className="sp-sidebar__logo-icon">
-          <Zap size={20} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <span className="sp-sidebar__logo-text" style={{ color: '#FFFFFF' }}>SetPrice</span>
-          <span className="sp-sidebar__logo-badge" style={{ background: 'rgba(8, 145, 178, 0.25)', color: 'var(--color-brand-accent)' }}>Beta</span>
-        </div>
+        <Link to="/" className="sp-sidebar__logo-link">
+          <div className="sp-sidebar__logo-icon">
+            <Zap size={20} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span className="sp-sidebar__logo-text" style={{ color: '#FFFFFF' }}>SetPrice</span>
+            <span className="sp-sidebar__logo-badge" style={{ background: 'rgba(8, 145, 178, 0.25)', color: 'var(--color-brand-accent)' }}>Beta</span>
+          </div>
+        </Link>
         <AlertBell />
+        <button className="sp-sidebar__collapse-btn" onClick={onClose} title="Menüyü Kapat">
+          <PanelLeftClose size={18} />
+        </button>
       </div>
 
       {/* Navigation */}
       <nav className="sp-sidebar__nav">
-        <div className="sp-sidebar__section-label">İstihbarat</div>
+        <div className="sp-sidebar__section-label">Ana Sayfa</div>
 
         <NavLink to="/" end className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
           <LayoutDashboard size={18} />

@@ -80,6 +80,7 @@ class ProductResponse(ProductBase):
     benchmark_match_name: Optional[str] = None
     decision_signal: Optional[str] = "WAIT"
     decision_reasoning: Optional[str] = None
+    ai_decision_updated_at: Optional[datetime] = None
     updated_at: datetime
 
     @model_validator(mode="before")
@@ -114,6 +115,7 @@ class ProductResponse(ProductBase):
                 "benchmark_match_name": lib.benchmark_match_name,
                 "decision_signal": lib.decision_signal,
                 "decision_reasoning": lib.decision_reasoning,
+                "ai_decision_updated_at": lib.ai_decision_updated_at,
             }
         return data
 
@@ -137,6 +139,7 @@ class LibraryProductResponse(BaseModel):
     benchmark_match_name: Optional[str] = None
     decision_signal: Optional[str] = "WAIT"
     decision_reasoning: Optional[str] = None
+    ai_decision_updated_at: Optional[datetime] = None
     benchmark_price: Optional[float] = None
     price_alert_threshold: Optional[float] = None
     rating: Optional[float] = None

@@ -278,6 +278,11 @@
   font-style: italic;
 }
 
+.sp-library__asset-reasoning-time {
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+
 /* --- Mobile --- */
 @media (max-width: 768px) {
   .sp-library__controls {

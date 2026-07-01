@@ -109,6 +109,7 @@ class LibraryProduct(Base):
     benchmark_match_name = Column(String, nullable=True)
 
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    ai_decision_updated_at = Column(DateTime, nullable=True)  # AI karar motoru en son ne zaman başarıyla çalıştı
 
     __table_args__ = (
         UniqueConstraint('user_id', 'original_link', name='uix_user_link'),

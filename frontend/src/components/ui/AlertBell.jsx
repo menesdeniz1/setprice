@@ -4,12 +4,16 @@ import { Link } from 'react-router-dom';
 import { getAlerts, getUnreadAlertCount, markAlertRead, markAllAlertsRead } from '../../api/client';
 import { ALERT_TYPE_CONFIG } from '../../utils/constants';
 
+const DROPDOWN_WIDTH = 360;
+
 export default function AlertBell() {
   const [alerts, setAlerts] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
   const panelRef = useRef(null);
+  const buttonRef = useRef(null);
 
   // Polling for unread count
   useEffect(() => {
@@ -36,8 +40,16 @@ export default function AlertBell() {
   }, [isOpen]);
 
   const handleOpen = async () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+    const next = !isOpen;
+    setIsOpen(next);
+    if (next && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 8,
+        left: Math.max(8, Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - 8)),
+      });
+    }
+    if (next) {
       setLoading(true);
       try {
         const data = await getAlerts();
@@ -74,6 +86,7 @@ export default function AlertBell() {
     <div ref={panelRef} style={{ position: 'relative' }}>
       {/* Bell Button */}
       <button
+        ref={buttonRef}
         onClick={handleOpen}
         style={{
           background: 'none',
@@ -108,13 +121,15 @@ export default function AlertBell() {
         )}
       </button>
 
-      {/* Dropdown Panel */}
+      {/* Dropdown Panel — position:fixed + coordinates from the button's
+          actual screen position, so it always renders fully on-screen
+          instead of being clipped by the sidebar's overflow:hidden. */}
       {isOpen && (
         <div style={{
-          position: 'absolute',
-          top: '100%',
-          right: 0,
-          width: '360px',
+          position: 'fixed',
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          width: `${DROPDOWN_WIDTH}px`,
           maxHeight: '480px',
           background: 'var(--color-bg-primary)',
           border: '1px solid var(--color-border)',

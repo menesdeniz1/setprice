@@ -7,6 +7,8 @@
   font-weight: 700;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: help;
   border: 1px solid transparent;
   transition: all var(--transition-fast);

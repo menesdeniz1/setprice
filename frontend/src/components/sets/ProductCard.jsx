@@ -1,7 +1,7 @@
 import './ProductCard.css';
 import { useState } from 'react';
 import { Lock, Unlock, Trash2, ExternalLink } from 'lucide-react';
-import { formatPrice } from '../../utils/formatPrice';
+import { formatPrice, formatRelativeTime } from '../../utils/formatPrice';
 import { STATUS_CONFIG } from '../../utils/constants';
 import SignalBadge from '../products/SignalBadge';
 import ScoreRing from '../ui/ScoreRing';
@@ -62,7 +62,7 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
             <ExternalLink size={12} />
           </a>
         </div>
-        <div className="sp-prodcard__meta" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+        <div className="sp-prodcard__meta">
           <span className="sp-prodcard__seller">{product.current_seller || 'Bilinmiyor'}</span>
           <span
             className="sp-prodcard__status"
@@ -98,6 +98,9 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
         {product.decision_reasoning && (
           <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.3' }}>
             {product.decision_reasoning}
+            {product.ai_decision_updated_at && (
+              <span style={{ color: 'var(--color-text-muted)', fontStyle: 'normal' }}> · {formatRelativeTime(product.ai_decision_updated_at)}</span>
+            )}
           </div>
         )}
       </div>
