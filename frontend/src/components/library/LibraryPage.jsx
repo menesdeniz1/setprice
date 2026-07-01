@@ -2,16 +2,17 @@ import './LibraryPage.css';
 import { useState, useEffect } from 'react';
 import { getLibraryProducts, getLibraryCategories, scanAllLibraryProducts, scanLibraryProduct, deleteLibraryProduct, addLibraryProduct } from '../../api/client';
 import { formatPrice, formatRelativeTime } from '../../utils/formatPrice';
-import { STATUS_CONFIG } from '../../utils/constants';
-import { ExternalLink, RefreshCw, Loader2, Search, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react';
+import { RefreshCw, Loader2, Search, ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react';
 import Button from '../ui/Button';
 import { useToast } from '../../context/ToastContext';
 import SignalBadge from '../products/SignalBadge';
+import ScoreRing from '../ui/ScoreRing';
 
 export default function LibraryPage() {
   const [category, setCategory] = useState('');
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [categories, setCategories] = useState([]);
   const [isScanningAll, setIsScanningAll] = useState(false);
   const [scanningIds, setScanningIds] = useState(new Set());
@@ -75,7 +76,8 @@ export default function LibraryPage() {
     try {
       const data = await getLibraryProducts(category || undefined);
       const newProducts = Array.isArray(data) ? data : [];
-      
+      setLoadError(false);
+
       setProducts(prev => {
         // Push Intelligence: Compare prev and new for BUY signals
         if (prev.length > 0) {
@@ -90,7 +92,7 @@ export default function LibraryPage() {
           }
           
           if (buyTransitions.length > 0) {
-            toast.success(`Akıllı Uyarı: Portföyünüzdeki ${buyTransitions.length} ürün BUY (AL) seviyesine girdi! 🚀`);
+            toast.success(`Akıllı Uyarı: Setlerinizdeki ${buyTransitions.length} ürün BUY (AL) seviyesine girdi! 🚀`);
           }
         }
         return newProducts;
@@ -98,6 +100,7 @@ export default function LibraryPage() {
     } catch (err) {
       console.error('Kütüphane ürünleri yüklenemedi:', err);
       setProducts([]);
+      setLoadError(true);
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -200,8 +203,8 @@ export default function LibraryPage() {
           <h1 className="sp-library__title">Ürün Kütüphanesi</h1>
           <p className="sp-library__subtitle">Daha önce eklediğiniz tüm ürünler burada listelenir</p>
         </div>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <form onSubmit={handleAddProduct} style={{ display: 'flex', gap: '8px' }}>
+        <div className="sp-library__controls">
+          <form onSubmit={handleAddProduct} className="sp-library__add-form">
             <input
               type="url"
               placeholder="Ürün linki yapıştır..."
@@ -209,28 +212,27 @@ export default function LibraryPage() {
               onChange={e => setNewProductLink(e.target.value)}
               required
               disabled={isAddingProduct}
-              style={{ padding: '8px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)', fontSize: '13px', width: '200px' }}
+              className="sp-login__input sp-library__add-input"
             />
             <Button type="submit" loading={isAddingProduct} icon={Plus}>
               Ekle
             </Button>
           </form>
-          <div style={{ position: 'relative' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+          <div className="sp-library__search">
+            <Search size={16} className="sp-library__search-icon" />
             <input
               type="text"
               placeholder="Ürün ara..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ padding: '8px 12px 8px 36px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'var(--color-text-primary)', fontSize: '13px', width: '180px' }}
+              className="sp-login__input sp-library__search-input"
             />
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-            <input 
-              type="checkbox" 
-              checked={groupDuplicates} 
-              onChange={e => setGroupDuplicates(e.target.checked)} 
-              style={{ accentColor: 'var(--color-primary)' }}
+          <label className="sp-library__dedupe">
+            <input
+              type="checkbox"
+              checked={groupDuplicates}
+              onChange={e => setGroupDuplicates(e.target.checked)}
             />
             Tekilleştir
           </label>
@@ -257,7 +259,7 @@ export default function LibraryPage() {
               className={`sp-library__filter-btn ${category === catName ? 'sp-library__filter-btn--active' : ''}`}
               onClick={() => setCategory(catName)}
             >
-              {catName} {catCount != null ? <span style={{ opacity: 0.7, fontSize: '0.9em', marginLeft: '4px' }}>({catCount})</span> : ''}
+              {catName} {catCount != null ? <span className="sp-library__filter-count">({catCount})</span> : ''}
             </button>
           );
         })}
@@ -322,6 +324,17 @@ export default function LibraryPage() {
           );
         }
 
+        if (loadError) {
+          return (
+            <div className="sp-library__empty sp-library__empty--error">
+              Ürünler yüklenirken bir sorun oluştu.
+              <Button variant="secondary" size="sm" icon={RefreshCw} onClick={() => loadProducts()}>
+                Tekrar Dene
+              </Button>
+            </div>
+          );
+        }
+
         if (displayProducts.length === 0) {
           return (
             <div className="sp-library__empty">
@@ -331,78 +344,60 @@ export default function LibraryPage() {
         }
 
         return (
-          <div className="sp-library__asset-grid" style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '16px',
-            marginTop: '16px'
-          }}>
+          <div className="sp-library__asset-grid">
             {displayProducts.map(p => {
-              const statusCfg = STATUS_CONFIG[p.status] || STATUS_CONFIG.BEKLEMEDE;
               return (
-                <div key={p.id} className="sp-library__asset-card" style={{
-                  background: 'var(--color-bg-surface)',
-                  borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--color-border)',
-                  boxShadow: 'var(--shadow-sm)',
-                  padding: '20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  height: '100%',
-                  gap: '16px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  transition: 'all var(--transition-base)'
-                }}>
-                  {/* Decorative background glow based on signal */}
-                  {p.decision_signal === 'BUY' && <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: 'var(--color-success)', filter: 'blur(40px)', opacity: 0.15, borderRadius: '50%' }} />}
-                  {p.decision_signal === 'AVOID' && <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: 'var(--color-danger)', filter: 'blur(40px)', opacity: 0.15, borderRadius: '50%' }} />}
+                <div key={p.id} className="sp-library__asset-card">
+                  {p.decision_signal === 'BUY' && <div className="sp-library__asset-glow sp-library__asset-glow--buy" />}
+                  {p.decision_signal === 'AVOID' && <div className="sp-library__asset-glow sp-library__asset-glow--avoid" />}
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-muted)', letterSpacing: '0.05em', marginBottom: '4px' }}>
-                        {p.ticker || 'UNK-000'}
-                      </div>
-                      <a href={p.original_link} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: 'var(--color-text-primary)', textDecoration: 'none', lineHeight: '1.4' }}>
-                        <span className="truncate" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal' }}>{p.name}</span>
-                      </a>
+                  <div className="sp-library__asset-top">
+                    <div className="sp-library__asset-ticker">
+                      {p.ticker || 'UNK-000'}
                     </div>
+                    <a href={p.original_link} target="_blank" rel="noopener noreferrer" className="sp-library__asset-name">
+                      <span className="truncate sp-library__asset-name-clamp">{p.name}</span>
+                    </a>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto' }}>
+                  <div className="sp-library__asset-bottom">
                     <div>
-                      <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>
+                      <div className="sp-library__asset-price font-mono">
                         {p.current_price ? formatPrice(p.current_price) : '—'}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                      <div className="sp-library__asset-meta">
                         {p.current_seller || 'Bilinmiyor'} • {formatRelativeTime(p.updated_at)}
                       </div>
                     </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', maxWidth: '60%' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+                    <div className="sp-library__asset-side">
+                      <div className="sp-library__asset-badges">
                         <SignalBadge signal={p.decision_signal} valueScore={p.value_score} />
+                        <ScoreRing
+                          value={p.value_score}
+                          size={26}
+                          strokeWidth={3}
+                          showValue={false}
+                          title={`Değer Skoru: ${p.value_score != null ? Math.round(p.value_score) : 'N/A'}/100`}
+                        />
                         {p.performance_score != null && (
                           <span
+                            className="sp-library__perf-badge font-mono"
                             title={p.benchmark_match_name ? `Referans: ${p.benchmark_match_name} (PassMark tahmini)` : undefined}
-                            style={{
-                              fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-full)',
-                              background: 'var(--color-secondary-muted)', color: 'var(--color-secondary)', cursor: 'help',
-                            }}
                           >
                             {Math.round(p.performance_score)}/100
                           </span>
                         )}
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button 
+                        <div className="sp-library__asset-actions">
+                          <button
                             onClick={() => handleScanSingle(p.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '4px' }}
+                            className="sp-library__icon-btn"
                             title="Güncelle"
                           >
                             {scanningIds.has(p.id) ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                           </button>
                           <button
-                            style={{ background: 'none', border: 'none', color: confirmDeleteId === p.id ? 'var(--color-danger)' : 'var(--color-text-muted)', cursor: 'pointer', padding: '4px' }}
+                            className={`sp-library__icon-btn ${confirmDeleteId === p.id ? 'sp-library__icon-btn--danger' : ''}`}
                             onClick={() => handleDelete(p.id)}
                             title={confirmDeleteId === p.id ? 'Silmeyi Onayla' : 'Sil'}
                           >
@@ -411,7 +406,7 @@ export default function LibraryPage() {
                         </div>
                       </div>
                       {p.decision_reasoning && (
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', textAlign: 'right', lineHeight: '1.3', fontStyle: 'italic' }}>
+                        <div className="sp-library__asset-reasoning">
                           {p.decision_reasoning}
                         </div>
                       )}

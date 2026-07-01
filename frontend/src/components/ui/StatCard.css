@@ -1,0 +1,55 @@
+.sp-stat-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  transition: all var(--transition-fast);
+}
+
+.sp-stat-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sp-stat-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sp-stat-card__value {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.sp-stat-card__label {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* Icon variant (dashboard highlight stats) */
+.sp-stat-card--icon {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+}
+
+.sp-stat-card--icon .sp-stat-card__value {
+  font-size: var(--text-xl);
+}
+
+.sp-stat-card--icon:hover {
+  border-color: var(--color-border-active);
+  transform: translateY(-1px);
+}

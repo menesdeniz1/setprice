@@ -1,13 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Check, CheckCheck, AlertTriangle, TrendingDown, ArrowRightLeft, Target } from 'lucide-react';
+import { Bell, CheckCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { getAlerts, getUnreadAlertCount, markAlertRead, markAllAlertsRead } from '../../api/client';
-
-const ALERT_ICONS = {
-  THRESHOLD: { icon: Target, color: '#FFD814' },
-  SIGNAL_CHANGE: { icon: ArrowRightLeft, color: '#007185' },
-  BULL_TRAP: { icon: AlertTriangle, color: '#B12704' },
-  TREND_DIP: { icon: TrendingDown, color: '#067D62' },
-};
+import { ALERT_TYPE_CONFIG } from '../../utils/constants';
 
 export default function AlertBell() {
   const [alerts, setAlerts] = useState([]);
@@ -86,7 +81,7 @@ export default function AlertBell() {
           cursor: 'pointer',
           position: 'relative',
           padding: '6px',
-          color: '#CCCCCC',
+          color: 'rgba(255, 255, 255, 0.7)',
         }}
         title="Bildirimler"
       >
@@ -96,7 +91,7 @@ export default function AlertBell() {
             position: 'absolute',
             top: 0,
             right: 0,
-            background: '#B12704',
+            background: 'var(--color-danger)',
             color: 'white',
             fontSize: '10px',
             fontWeight: '700',
@@ -121,8 +116,8 @@ export default function AlertBell() {
           right: 0,
           width: '360px',
           maxHeight: '480px',
-          background: '#FFFFFF',
-          border: '1px solid #D5D9D9',
+          background: 'var(--color-bg-primary)',
+          border: '1px solid var(--color-border)',
           borderRadius: '8px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
           zIndex: 1000,
@@ -133,12 +128,12 @@ export default function AlertBell() {
           {/* Header */}
           <div style={{
             padding: '12px 16px',
-            borderBottom: '1px solid #E7E7E7',
+            borderBottom: '1px solid var(--color-border-subtle)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}>
-            <span style={{ fontWeight: '700', fontSize: '14px', color: '#0F1111' }}>
+            <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--color-ink)' }}>
               Bildirimler {unreadCount > 0 && `(${unreadCount})`}
             </span>
             {unreadCount > 0 && (
@@ -149,7 +144,7 @@ export default function AlertBell() {
                   border: 'none',
                   cursor: 'pointer',
                   fontSize: '12px',
-                  color: '#007185',
+                  color: 'var(--color-brand-accent)',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
@@ -164,14 +159,14 @@ export default function AlertBell() {
           {/* Alert List */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {loading ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#767676' }}>Yükleniyor...</div>
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
             ) : alerts.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: '#767676', fontSize: '13px' }}>
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '13px' }}>
                 Henüz bildirim yok
               </div>
             ) : (
               alerts.map(alert => {
-                const cfg = ALERT_ICONS[alert.alert_type] || ALERT_ICONS.SIGNAL_CHANGE;
+                const cfg = ALERT_TYPE_CONFIG[alert.alert_type] || ALERT_TYPE_CONFIG.SIGNAL_CHANGE;
                 const Icon = cfg.icon;
                 return (
                   <div
@@ -179,9 +174,9 @@ export default function AlertBell() {
                     onClick={() => !alert.is_read && handleMarkRead(alert.id)}
                     style={{
                       padding: '12px 16px',
-                      borderBottom: '1px solid #F0F0F0',
+                      borderBottom: '1px solid var(--color-border-subtle)',
                       cursor: alert.is_read ? 'default' : 'pointer',
-                      background: alert.is_read ? '#FFFFFF' : '#FEF9E7',
+                      background: alert.is_read ? 'var(--color-bg-primary)' : 'var(--color-brand-accent-muted)',
                       display: 'flex',
                       gap: '12px',
                       alignItems: 'flex-start',
@@ -192,7 +187,7 @@ export default function AlertBell() {
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      background: `${cfg.color}15`,
+                      background: cfg.bg,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -204,19 +199,19 @@ export default function AlertBell() {
                       <div style={{
                         fontSize: '13px',
                         fontWeight: alert.is_read ? '400' : '600',
-                        color: '#0F1111',
+                        color: 'var(--color-ink)',
                         marginBottom: '2px',
                       }}>
                         {alert.title}
                       </div>
                       <div style={{
                         fontSize: '12px',
-                        color: '#565959',
+                        color: 'var(--color-text-secondary)',
                         lineHeight: '1.4',
                       }}>
                         {alert.message}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#767676', marginTop: '4px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
                         {formatTime(alert.created_at)}
                       </div>
                     </div>
@@ -225,7 +220,7 @@ export default function AlertBell() {
                         width: '8px',
                         height: '8px',
                         borderRadius: '50%',
-                        background: '#007185',
+                        background: 'var(--color-brand-accent)',
                         flexShrink: 0,
                         marginTop: '6px',
                       }} />
@@ -235,6 +230,22 @@ export default function AlertBell() {
               })
             )}
           </div>
+          <Link
+            to="/notifications"
+            onClick={() => setIsOpen(false)}
+            style={{
+              display: 'block',
+              textAlign: 'center',
+              padding: '10px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--color-brand-accent)',
+              borderTop: '1px solid var(--color-border-subtle)',
+              textDecoration: 'none',
+            }}
+          >
+            Tüm Bildirimleri Gör
+          </Link>
         </div>
       )}
     </div>

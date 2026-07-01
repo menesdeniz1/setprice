@@ -243,5 +243,10 @@ export async function setPriceThreshold(libraryProductId, threshold) {
   });
 }
 
+// --- Scraper Health ---
+export async function getScraperHealth() {
+  return request('scraper-health');
+}
+
 // Token utilities for external use
 export { getToken, setToken, removeToken };

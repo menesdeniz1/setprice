@@ -22,18 +22,37 @@
   --color-primary: #111827;        /* Modern Slate/Black for premium tech feel */
   --color-primary-hover: #1F2937;
   --color-primary-muted: #F3F4F6;
-  
+
   --color-secondary: #2563EB;      /* Vivid Blue for accents */
   --color-secondary-hover: #1D4ED8;
   --color-secondary-muted: #EFF6FF;
 
-  /* Colors — Semantic */
+  /* Colors — Brand Accent (single unified brand color: sidebar, logo,
+     interactive highlights, chart line) */
+  --color-brand-accent: #0891B2;
+  --color-brand-accent-hover: #0E7490;
+  --color-brand-accent-muted: #E0F5F8;
+
+  /* Colors — Core ink/canvas */
+  --color-ink: #12161F;
+  --color-canvas: #F5F6F8;
+
+  /* Colors — Semantic (generic UI meaning, e.g. scraper status) */
   --color-success: #10B981;        /* Vivid green */
   --color-success-muted: #ECFDF5;
   --color-danger: #EF4444;         /* Vivid red */
   --color-danger-muted: #FEF2F2;
   --color-warning: #F59E0B;        /* Vivid amber */
   --color-warning-muted: #FFFBEB;
+
+  /* Colors — Signal (BUY/WAIT/AVOID decision, kept separate from the
+     generic semantic tokens above — never shared) */
+  --color-signal-buy: #0E8F6F;
+  --color-signal-buy-muted: #E4F5F0;
+  --color-signal-wait: #A9752C;
+  --color-signal-wait-muted: #F7EEE1;
+  --color-signal-avoid: #9C2B45;
+  --color-signal-avoid-muted: #F8E5E9;
 
   /* Colors — Text */
   --color-text-primary: #111827;   /* Slate 900 */

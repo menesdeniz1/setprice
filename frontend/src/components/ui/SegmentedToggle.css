@@ -1,0 +1,40 @@
+.sp-segmented {
+  display: inline-flex;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.sp-segmented__option {
+  padding: 6px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.sp-segmented__option:hover:not(.sp-segmented__option--active) {
+  color: var(--color-text-primary);
+}
+
+.sp-segmented__option--active {
+  background: var(--color-brand-accent);
+  color: #FFFFFF;
+}
+
+.sp-segmented__option:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.sp-segmented--sm .sp-segmented__option {
+  padding: 5px 10px;
+  font-size: var(--text-xs);
+}

@@ -1,7 +1,7 @@
 import './Sidebar.css';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, X, Send } from 'lucide-react';
+import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, X, Send, Activity, Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import AlertBell from '../ui/AlertBell';
 import NotificationSettingsModal from '../ui/NotificationSettingsModal';
@@ -40,7 +40,7 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
         </div>
         <div style={{ flex: 1 }}>
           <span className="sp-sidebar__logo-text" style={{ color: '#FFFFFF' }}>SetPrice</span>
-          <span className="sp-sidebar__logo-badge" style={{ background: 'rgba(255,216,20,0.2)', color: '#FFD814' }}>Beta</span>
+          <span className="sp-sidebar__logo-badge" style={{ background: 'rgba(8, 145, 178, 0.25)', color: 'var(--color-brand-accent)' }}>Beta</span>
         </div>
         <AlertBell />
       </div>
@@ -55,7 +55,7 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
         </NavLink>
 
         <div className="sp-sidebar__section-label" style={{ marginTop: 'var(--space-5)' }}>
-          Portfolio
+          Setlerim
         </div>
 
         {sets.map((set) => (
@@ -71,7 +71,7 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
 
         <button className="sp-sidebar__link sp-sidebar__link--add" onClick={onCreateSet}>
           <Plus size={16} />
-          <span>Yeni Portföy Ekle</span>
+          <span>Yeni Set Ekle</span>
         </button>
 
         <div className="sp-sidebar__section-label" style={{ marginTop: 'var(--space-5)' }}>
@@ -81,6 +81,20 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
         <NavLink to="/library" className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
           <Library size={18} />
           <span>Watchlist (Kütüphane)</span>
+        </NavLink>
+
+        <div className="sp-sidebar__section-label" style={{ marginTop: 'var(--space-5)' }}>
+          Sistem
+        </div>
+
+        <NavLink to="/scraper-health" className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
+          <Activity size={18} />
+          <span>Scraper Sağlığı</span>
+        </NavLink>
+
+        <NavLink to="/notifications" className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
+          <Bell size={18} />
+          <span>Bildirim Merkezi</span>
         </NavLink>
       </nav>
 

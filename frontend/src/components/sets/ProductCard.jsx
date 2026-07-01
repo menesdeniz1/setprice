@@ -4,6 +4,7 @@ import { Lock, Unlock, Trash2, ExternalLink } from 'lucide-react';
 import { formatPrice } from '../../utils/formatPrice';
 import { STATUS_CONFIG } from '../../utils/constants';
 import SignalBadge from '../products/SignalBadge';
+import ScoreRing from '../ui/ScoreRing';
 
 export default function ProductCard({ product, onToggleActive, onToggleLock, onUpdateLockedPrice, onDelete, onClick }) {
   const price = product.current_price || product.locked_price;
@@ -70,7 +71,16 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
             {statusCfg.label}
           </span>
           {product.decision_signal && (
-            <SignalBadge signal={product.decision_signal} valueScore={product.value_score} />
+            <>
+              <SignalBadge signal={product.decision_signal} valueScore={product.value_score} />
+              <ScoreRing
+                value={product.value_score}
+                size={22}
+                strokeWidth={2.5}
+                showValue={false}
+                title={`Değer Skoru: ${product.value_score != null ? Math.round(product.value_score) : 'N/A'}/100`}
+              />
+            </>
           )}
           {product.performance_score != null && (
             <span
@@ -79,6 +89,7 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
                 fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-full)',
                 background: 'var(--color-secondary-muted)', color: 'var(--color-secondary)', cursor: 'help',
               }}
+              className="font-mono"
             >
               Performans: {Math.round(product.performance_score)}/100
             </span>

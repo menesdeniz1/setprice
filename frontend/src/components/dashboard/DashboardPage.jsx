@@ -1,6 +1,7 @@
 import './DashboardPage.css';
 import { MonitorSmartphone, TrendingDown, Package, Zap } from 'lucide-react';
 import { formatPrice } from '../../utils/formatPrice';
+import StatCard from '../ui/StatCard';
 import SetCard from './SetCard';
 
 export default function DashboardPage({ sets = [], onNavigateToSet, onCreateSet }) {
@@ -27,37 +28,29 @@ export default function DashboardPage({ sets = [], onNavigateToSet, onCreateSet 
 
       {/* Portfolio Intelligence: Best Moves */}
       <div className="sp-dashboard__stats" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-        <div className="sp-stat-card" style={{ borderLeft: '4px solid var(--color-success)' }}>
-          <div className="sp-stat-card__icon" style={{ background: 'var(--color-success)', color: 'white' }}>
-            <Zap size={20} />
-          </div>
-          <div className="sp-stat-card__info">
-            <span className="sp-stat-card__value">{buyProducts.length}</span>
-            <span className="sp-stat-card__label">Alım Fırsatı (BUY)</span>
-          </div>
-        </div>
+        <StatCard
+          icon={Zap}
+          accentColor="var(--color-signal-buy)"
+          value={buyProducts.length}
+          label="Alım Fırsatı (BUY)"
+          mono
+        />
 
-        <div className="sp-stat-card" style={{ borderLeft: '4px solid var(--color-warning)' }}>
-          <div className="sp-stat-card__icon" style={{ background: 'var(--color-warning)', color: 'white' }}>
-            <TrendingDown size={20} />
-          </div>
-          <div className="sp-stat-card__info">
-            <span className="sp-stat-card__value font-mono">
-              {formatPrice(allProducts.reduce((sum, p) => sum + (p.current_price && p.benchmark_price && p.current_price < p.benchmark_price ? p.benchmark_price - p.current_price : 0), 0))}
-            </span>
-            <span className="sp-stat-card__label">Potansiyel Tasarruf</span>
-          </div>
-        </div>
+        <StatCard
+          icon={TrendingDown}
+          accentColor="var(--color-signal-wait)"
+          mono
+          value={formatPrice(allProducts.reduce((sum, p) => sum + (p.current_price && p.benchmark_price && p.current_price < p.benchmark_price ? p.benchmark_price - p.current_price : 0), 0))}
+          label="Potansiyel Tasarruf"
+        />
 
-        <div className="sp-stat-card" style={{ borderLeft: '4px solid var(--color-danger)' }}>
-          <div className="sp-stat-card__icon" style={{ background: 'var(--color-danger)', color: 'white' }}>
-            <MonitorSmartphone size={20} />
-          </div>
-          <div className="sp-stat-card__info">
-            <span className="sp-stat-card__value">{avoidProducts.length}</span>
-            <span className="sp-stat-card__label">Şişkin Fiyat (AVOID)</span>
-          </div>
-        </div>
+        <StatCard
+          icon={MonitorSmartphone}
+          accentColor="var(--color-signal-avoid)"
+          value={avoidProducts.length}
+          label="Şişkin Fiyat (AVOID)"
+          mono
+        />
       </div>
 
       {allProducts.length > 0 && (

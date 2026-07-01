@@ -9,6 +9,8 @@ import LoginPage from './components/auth/LoginPage';
 import DashboardPage from './components/dashboard/DashboardPage';
 import SetDetailPage from './components/sets/SetDetailPage';
 import LibraryPage from './components/library/LibraryPage';
+import ScraperHealthPage from './components/scraper/ScraperHealthPage';
+import NotificationCenterPage from './components/notifications/NotificationCenterPage';
 import Modal from './components/ui/Modal';
 import Button from './components/ui/Button';
 
@@ -132,6 +134,8 @@ function App() {
             element={<SetDetailPage onSetDeleted={handleSetDeleted} />}
           />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/scraper-health" element={<ScraperHealthPage />} />
+          <Route path="/notifications" element={<NotificationCenterPage />} />
         </Route>
         <Route path="/login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />

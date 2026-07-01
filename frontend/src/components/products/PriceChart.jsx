@@ -20,10 +20,18 @@ export default function PriceChart({ data }) {
     const prices = data.map(h => h.price);
 
     // Gradient fill
+    const style = getComputedStyle(document.documentElement);
+    const brandAccent = style.getPropertyValue('--color-brand-accent').trim() || '#0891B2';
+    const ink = style.getPropertyValue('--color-ink').trim() || '#12161F';
+    const border = style.getPropertyValue('--color-border').trim() || '#E5E7EB';
+    const textSecondary = style.getPropertyValue('--color-text-secondary').trim() || '#4B5563';
+    const textMuted = style.getPropertyValue('--color-text-muted').trim() || '#9CA3AF';
+    const bgPrimary = style.getPropertyValue('--color-bg-primary').trim() || '#FFFFFF';
+
     const ctx = canvasRef.current.getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient.addColorStop(0, 'rgba(6, 182, 212, 0.2)');
-    gradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
+    gradient.addColorStop(0, 'rgba(8, 145, 178, 0.18)');
+    gradient.addColorStop(1, 'rgba(8, 145, 178, 0)');
 
     chartRef.current = new Chart(ctx, {
       type: 'line',
@@ -32,18 +40,18 @@ export default function PriceChart({ data }) {
         datasets: [{
           label: 'Fiyat (₺)',
           data: prices,
-          borderColor: '#06B6D4',
+          borderColor: brandAccent,
           backgroundColor: gradient,
           borderWidth: 2.5,
           fill: true,
           tension: 0.35,
-          pointBackgroundColor: '#06B6D4',
-          pointBorderColor: '#111827',
+          pointBackgroundColor: brandAccent,
+          pointBorderColor: bgPrimary,
           pointBorderWidth: 2,
           pointRadius: 3,
           pointHoverRadius: 6,
-          pointHoverBackgroundColor: '#06B6D4',
-          pointHoverBorderColor: 'white',
+          pointHoverBackgroundColor: brandAccent,
+          pointHoverBorderColor: bgPrimary,
           pointHoverBorderWidth: 2,
         }],
       },
@@ -57,13 +65,13 @@ export default function PriceChart({ data }) {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1E293B',
-            titleColor: '#94A3B8',
-            bodyColor: '#F1F5F9',
+            backgroundColor: ink,
+            titleColor: textMuted,
+            bodyColor: bgPrimary,
             titleFont: { family: 'Inter', size: 11 },
             bodyFont: { family: 'JetBrains Mono', size: 13, weight: 'bold' },
             padding: 10,
-            borderColor: 'rgba(255,255,255,0.06)',
+            borderColor: 'transparent',
             borderWidth: 1,
             cornerRadius: 8,
             displayColors: false,
@@ -74,9 +82,9 @@ export default function PriceChart({ data }) {
         },
         scales: {
           y: {
-            grid: { color: 'rgba(255, 255, 255, 0.03)', drawBorder: false },
+            grid: { color: border, drawBorder: false },
             ticks: {
-              color: '#475569',
+              color: textSecondary,
               font: { family: 'JetBrains Mono', size: 10 },
               callback: (value) => `${(value / 1000).toFixed(value >= 1000 ? 0 : 1)}K`,
             },
@@ -85,7 +93,7 @@ export default function PriceChart({ data }) {
           x: {
             grid: { display: false },
             ticks: {
-              color: '#475569',
+              color: textSecondary,
               font: { family: 'Inter', size: 10 },
               maxRotation: 0,
             },

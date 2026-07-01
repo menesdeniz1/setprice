@@ -1,0 +1,37 @@
+.sp-signal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  cursor: help;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.sp-signal-badge--new {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-surface-hover);
+  border-color: var(--color-border-subtle);
+}
+
+.sp-signal-badge--buy {
+  color: var(--color-signal-buy);
+  background: var(--color-signal-buy-muted);
+  border-color: rgba(14, 143, 111, 0.35);
+}
+
+.sp-signal-badge--wait {
+  color: var(--color-signal-wait);
+  background: var(--color-signal-wait-muted);
+  border-color: rgba(169, 117, 44, 0.35);
+}
+
+.sp-signal-badge--avoid {
+  color: var(--color-signal-avoid);
+  background: var(--color-signal-avoid-muted);
+  border-color: rgba(156, 43, 69, 0.35);
+}

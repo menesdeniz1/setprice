@@ -1,0 +1,17 @@
+.sp-score-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sp-score-ring__arc {
+  transition: stroke-dashoffset 600ms ease;
+}
+
+.sp-score-ring__value {
+  position: absolute;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,12 +1,15 @@
 import './SetDetailPage.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { RefreshCw, Settings, Trash2, X } from 'lucide-react';
+import { RefreshCw, Settings, Trash2, X, AlertTriangle } from 'lucide-react';
 import { getSetById, scanSet, deleteProduct, updateProduct, addProductToSet, deleteSet, updateSet, addSetCategory, renameSetCategory, deleteSetCategory } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { formatPrice, calcPercent } from '../../utils/formatPrice';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
+import SegmentedToggle from '../ui/SegmentedToggle';
+import StatCard from '../ui/StatCard';
+import ScoreRing from '../ui/ScoreRing';
 import BudgetBar from './BudgetBar';
 import CategoryGroup from './CategoryGroup';
 import AddProductWidget from './AddProductWidget';
@@ -224,7 +227,20 @@ export default function SetDetailPage({ onSetDeleted }) {
     );
   }
 
-  if (!setData) return null;
+  if (!setData) {
+    return (
+      <div className="sp-setdetail__error">
+        <div className="sp-setdetail__error-icon">
+          <AlertTriangle size={32} />
+        </div>
+        <h3>Set yüklenemedi</h3>
+        <p>Bağlantı sorunu olabilir veya set artık mevcut değil.</p>
+        <Button variant="secondary" icon={RefreshCw} onClick={loadSet}>
+          Tekrar Dene
+        </Button>
+      </div>
+    );
+  }
 
   const products = setData.products || [];
   const activeProducts = products.filter(p => p.is_active);
@@ -297,32 +313,28 @@ export default function SetDetailPage({ onSetDeleted }) {
 
       {/* Summary Cards */}
       <div className="sp-setdetail__stats">
-        <div className="sp-mini-stat">
-          <span className="sp-mini-stat__label">Toplam Parça</span>
-          <span className="sp-mini-stat__value">{products.length}</span>
-        </div>
-        <div className="sp-mini-stat">
-          <span className="sp-mini-stat__label">Portföy Sağlığı</span>
-          <span className="sp-mini-stat__value" style={{ color: healthScore > 75 ? 'var(--color-success)' : healthScore > 40 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
-            {scoredProducts.length > 0 ? `%${healthScore}` : '—'}
-          </span>
-        </div>
-        <div className="sp-mini-stat">
-          <span className="sp-mini-stat__label">Aktif</span>
-          <span className="sp-mini-stat__value" style={{ color: 'var(--color-success)' }}>{activeProducts.length}</span>
-        </div>
-        <div className="sp-mini-stat">
-          <span className="sp-mini-stat__label">Taranmadı</span>
-          <span className="sp-mini-stat__value" style={{ color: 'var(--color-warning)' }}>
-            {products.filter(p => p.status === 'BEKLEMEDE').length}
-          </span>
-        </div>
-        <div className="sp-mini-stat">
-          <span className="sp-mini-stat__label">Hatalı</span>
-          <span className="sp-mini-stat__value" style={{ color: 'var(--color-danger)' }}>
-            {products.filter(p => p.status === 'FAILED').length}
-          </span>
-        </div>
+        <StatCard label="Toplam Parça" value={products.length} mono />
+        <StatCard
+          label="Set Sağlığı"
+          value={
+            scoredProducts.length > 0
+              ? <ScoreRing value={healthScore} size={44} strokeWidth={4} />
+              : <ScoreRing value={null} size={44} strokeWidth={4} />
+          }
+        />
+        <StatCard label="Aktif" value={activeProducts.length} valueColor="var(--color-success)" mono />
+        <StatCard
+          label="Taranmadı"
+          value={products.filter(p => p.status === 'BEKLEMEDE').length}
+          valueColor="var(--color-warning)"
+          mono
+        />
+        <StatCard
+          label="Hatalı"
+          value={products.filter(p => p.status === 'FAILED').length}
+          valueColor="var(--color-danger)"
+          mono
+        />
       </div>
 
       {/* Add Product Widget */}
@@ -330,16 +342,14 @@ export default function SetDetailPage({ onSetDeleted }) {
 
       {/* Group By Toggle */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '4px', border: '1px solid var(--color-border)' }}>
-          <button 
-            onClick={() => setGroupBy('category')}
-            style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', borderRadius: 'var(--radius-sm)', border: 'none', background: groupBy === 'category' ? 'var(--color-primary)' : 'transparent', color: groupBy === 'category' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
-          >Kategoriye Göre</button>
-          <button 
-            onClick={() => setGroupBy('signal')}
-            style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', borderRadius: 'var(--radius-sm)', border: 'none', background: groupBy === 'signal' ? 'var(--color-primary)' : 'transparent', color: groupBy === 'signal' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
-          >Sinyale Göre</button>
-        </div>
+        <SegmentedToggle
+          value={groupBy}
+          onChange={setGroupBy}
+          options={[
+            { value: 'category', label: 'Kategoriye Göre' },
+            { value: 'signal', label: 'Sinyale Göre' },
+          ]}
+        />
       </div>
 
       {/* Product Groups */}

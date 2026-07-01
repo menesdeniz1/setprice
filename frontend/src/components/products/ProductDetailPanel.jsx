@@ -5,6 +5,8 @@ import { getProductHistory, getProductAlternatives, setPriceThreshold } from '..
 import { formatPrice, formatDate, formatRelativeTime } from '../../utils/formatPrice';
 import { STATUS_CONFIG } from '../../utils/constants';
 import { useToast } from '../../context/ToastContext';
+import SegmentedToggle from '../ui/SegmentedToggle';
+import ScoreRing from '../ui/ScoreRing';
 import React, { Suspense } from 'react';
 
 const PriceChart = React.lazy(() => import('./PriceChart'));
@@ -209,34 +211,24 @@ export default function ProductDetailPanel({ product, onClose }) {
               ) : (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '0 var(--space-6) var(--space-4)' }}>
-                    <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '3px', border: '1px solid var(--color-border)' }}>
-                      <button
-                        onClick={() => setAltMode('same_product')}
-                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altMode === 'same_product' ? 'var(--color-primary)' : 'transparent', color: altMode === 'same_product' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer' }}
-                      >
-                        Başka Mağazada ({sameProductAlts.length})
-                      </button>
-                      <button
-                        onClick={() => setAltMode('similar')}
-                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altMode === 'similar' ? 'var(--color-primary)' : 'transparent', color: altMode === 'similar' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer' }}
-                      >
-                        Muadil Ürünler ({similarAlts.length})
-                      </button>
-                    </div>
-                    <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '3px', border: '1px solid var(--color-border)' }}>
-                      <button
-                        onClick={() => setAltSort('price')}
-                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altSort === 'price' ? 'var(--color-secondary)' : 'transparent', color: altSort === 'price' ? '#fff' : 'var(--color-text-secondary)', cursor: 'pointer' }}
-                      >
-                        Fiyata Göre
-                      </button>
-                      <button
-                        onClick={() => setAltSort('smart')}
-                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altSort === 'smart' ? 'var(--color-secondary)' : 'transparent', color: altSort === 'smart' ? '#fff' : 'var(--color-text-secondary)', cursor: 'pointer' }}
-                      >
-                        Akıllı Sıralama
-                      </button>
-                    </div>
+                    <SegmentedToggle
+                      size="sm"
+                      value={altMode}
+                      onChange={setAltMode}
+                      options={[
+                        { value: 'same_product', label: `Başka Mağazada (${sameProductAlts.length})` },
+                        { value: 'similar', label: `Muadil Ürünler (${similarAlts.length})` },
+                      ]}
+                    />
+                    <SegmentedToggle
+                      size="sm"
+                      value={altSort}
+                      onChange={setAltSort}
+                      options={[
+                        { value: 'price', label: 'Fiyata Göre' },
+                        { value: 'smart', label: 'Akıllı Sıralama' },
+                      ]}
+                    />
                   </div>
 
                   {sortedAlts.length === 0 ? (
@@ -247,16 +239,17 @@ export default function ProductDetailPanel({ product, onClose }) {
                     </div>
                   ) : (
                 <div style={{ background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', padding: '12px 16px', background: 'var(--color-bg-surface-hover)', borderBottom: '1px solid var(--color-border)', fontSize: '12px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 0.7fr 1fr auto', padding: '12px 16px', background: 'var(--color-bg-surface-hover)', borderBottom: '1px solid var(--color-border)', fontSize: '12px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>
                     <div>Satıcı</div>
-                    <div>Durum / Kargo</div>
+                    <div>Ürün</div>
+                    <div>Eşleşme</div>
                     <div>Fiyat</div>
                     <div></div>
                   </div>
                   {sortedAlts.map((alt, i) => {
                     const isCheaper = alt.price < price;
                     return (
-                      <div key={alt.id || i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', padding: '16px', alignItems: 'center', borderBottom: '1px solid var(--color-border)', background: isCheaper ? 'var(--color-success-muted)' : 'transparent', transition: 'background 0.2s' }}>
+                      <div key={alt.id || i} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 0.7fr 1fr auto', padding: '16px', alignItems: 'center', borderBottom: '1px solid var(--color-border)', background: isCheaper ? 'var(--color-success-muted)' : 'transparent', transition: 'background 0.2s' }}>
                         <div>
                           <div style={{ fontWeight: '500', color: 'var(--color-text-primary)', fontSize: '14px' }}>{alt.seller || 'Bilinmiyor'}</div>
                           {isCheaper && <div style={{ fontSize: '11px', color: 'var(--color-success)', fontWeight: '600', marginTop: '2px' }}>⭐ En Ucuz</div>}
@@ -264,11 +257,18 @@ export default function ProductDetailPanel({ product, onClose }) {
                         <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                           <span title={alt.title} className="truncate" style={{ maxWidth: '120px', display: 'inline-block' }}>{alt.title}</span>
                         </div>
+                        <div title="Başlık benzerlik oranına dayalı eşleşme güveni">
+                          <ScoreRing
+                            value={alt.match_confidence != null ? alt.match_confidence * 100 : null}
+                            size={32}
+                            strokeWidth={3}
+                          />
+                        </div>
                         <div style={{ fontWeight: '700', fontSize: '15px', color: isCheaper ? 'var(--color-success)' : 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>
                           {formatPrice(alt.price)}
                         </div>
                         <div>
-                          <a href={alt.link} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: 'var(--color-secondary)', color: '#fff', borderRadius: '4px', fontSize: '12px', fontWeight: '500', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <a href={alt.link} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: 'var(--color-brand-accent)', color: '#fff', borderRadius: '4px', fontSize: '12px', fontWeight: '500', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                             Satıcıya Git <ExternalLink size={12} />
                           </a>
                         </div>
