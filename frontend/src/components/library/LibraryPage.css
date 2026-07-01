@@ -152,7 +152,7 @@
 .sp-library__scan-btn {
   background: transparent;
   border: none;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
@@ -163,8 +163,8 @@
 }
 
 .sp-library__scan-btn:hover {
-  color: var(--primary);
-  background: var(--surface-hover);
+  color: var(--color-primary);
+  background: var(--color-bg-surface-hover);
 }
 
 /* --- Mobile Table --- */

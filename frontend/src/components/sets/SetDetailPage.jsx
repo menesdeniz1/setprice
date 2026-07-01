@@ -1,8 +1,8 @@
 import './SetDetailPage.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { RefreshCw, Settings, Trash2 } from 'lucide-react';
-import { getSetById, scanSet, deleteProduct, updateProduct, addProductToSet, deleteSet, updateSet } from '../../api/client';
+import { RefreshCw, Settings, Trash2, X } from 'lucide-react';
+import { getSetById, scanSet, deleteProduct, updateProduct, addProductToSet, deleteSet, updateSet, addSetCategory, renameSetCategory, deleteSetCategory } from '../../api/client';
 import { useToast } from '../../context/ToastContext';
 import { formatPrice, calcPercent } from '../../utils/formatPrice';
 import Button from '../ui/Button';
@@ -24,11 +24,30 @@ export default function SetDetailPage({ onSetDeleted }) {
   const [editName, setEditName] = useState('');
   const [editBudget, setEditBudget] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [groupBy, setGroupBy] = useState('category'); // 'category' | 'signal'
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
 
   const loadSet = useCallback(async () => {
     try {
       const data = await getSetById(setId);
-      setSetData(data);
+      setSetData(prev => {
+        if (prev && prev.products && data.products) {
+          const prevMap = new Map(prev.products.map(p => [p.library_product_id, p]));
+          const buyTransitions = [];
+          for (const np of data.products) {
+            const op = prevMap.get(np.library_product_id);
+            if (op && op.decision_signal !== 'BUY' && np.decision_signal === 'BUY') {
+              buyTransitions.push(np);
+            }
+          }
+          if (buyTransitions.length > 0) {
+            toast.success(`Akıllı Uyarı: Setinizdeki ${buyTransitions.length} ürün BUY seviyesine girdi! 🚀`);
+          }
+        }
+        return data;
+      });
     } catch (err) {
       console.error(err);
       toast.error('Set yüklenemedi');
@@ -120,9 +139,9 @@ export default function SetDetailPage({ onSetDeleted }) {
     }
   };
 
-  const handleAddProduct = async ({ originalLink, libraryProductId }) => {
+  const handleAddProduct = async ({ originalLink, libraryProductId, category }) => {
     try {
-      await addProductToSet(setId, { originalLink, libraryProductId });
+      await addProductToSet(setId, { originalLink, libraryProductId, category });
       await loadSet();
       toast.success('Ürün eklendi!');
     } catch (err) {
@@ -162,6 +181,39 @@ export default function SetDetailPage({ onSetDeleted }) {
     }
   };
 
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      await addSetCategory(setId, newCategoryName.trim());
+      setNewCategoryName('');
+      await loadSet();
+    } catch (err) {
+      toast.error('Kategori eklenemedi');
+    }
+  };
+
+  const handleRenameCategory = async (categoryId, currentName) => {
+    setEditingCategoryId(null);
+    const trimmed = editingCategoryName.trim();
+    if (!trimmed || trimmed === currentName) return;
+    try {
+      await renameSetCategory(setId, categoryId, trimmed);
+      await loadSet();
+    } catch (err) {
+      toast.error('Kategori güncellenemedi');
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    try {
+      await deleteSetCategory(setId, categoryId);
+      await loadSet();
+    } catch (err) {
+      toast.error('Kategori silinemedi');
+    }
+  };
+
   if (loading) {
     return (
       <div className="sp-setdetail__loading">
@@ -179,12 +231,36 @@ export default function SetDetailPage({ onSetDeleted }) {
   const totalCost = activeProducts.reduce((sum, p) => sum + (p.current_price || p.locked_price || 0), 0);
   const budgetPercent = calcPercent(totalCost, setData.target_budget);
 
-  // Group by category
+  // Calculate Health Score
+  const scoredProducts = activeProducts.filter(p => p.value_score !== undefined && p.value_score !== null);
+  const healthScore = scoredProducts.length > 0 
+    ? Math.round(scoredProducts.reduce((acc, p) => acc + p.value_score, 0) / scoredProducts.length)
+    : 0;
+
+  // Grouping logic
   const grouped = {};
   products.forEach(p => {
-    const cat = p.category || 'Diğer';
-    if (!grouped[cat]) grouped[cat] = [];
-    grouped[cat].push(p);
+    let key;
+    if (groupBy === 'signal') {
+      const sig = p.decision_signal || 'WAIT';
+      key = sig === 'BUY' ? '🟢 Alım Fırsatı (BUY)' : sig === 'AVOID' ? '🔴 Uzak Dur (AVOID)' : '🟡 Bekle (WAIT)';
+    } else {
+      key = p.category || 'Diğer';
+    }
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  // Sort groups if by signal
+  const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
+    if (groupBy === 'signal') {
+      if (a.includes('BUY')) return -1;
+      if (b.includes('BUY')) return 1;
+      if (a.includes('AVOID')) return 1;
+      if (b.includes('AVOID')) return -1;
+      return 0;
+    }
+    return a.localeCompare(b);
   });
 
   return (
@@ -226,6 +302,12 @@ export default function SetDetailPage({ onSetDeleted }) {
           <span className="sp-mini-stat__value">{products.length}</span>
         </div>
         <div className="sp-mini-stat">
+          <span className="sp-mini-stat__label">Portföy Sağlığı</span>
+          <span className="sp-mini-stat__value" style={{ color: healthScore > 75 ? 'var(--color-success)' : healthScore > 40 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+            {scoredProducts.length > 0 ? `%${healthScore}` : '—'}
+          </span>
+        </div>
+        <div className="sp-mini-stat">
           <span className="sp-mini-stat__label">Aktif</span>
           <span className="sp-mini-stat__value" style={{ color: 'var(--color-success)' }}>{activeProducts.length}</span>
         </div>
@@ -244,7 +326,21 @@ export default function SetDetailPage({ onSetDeleted }) {
       </div>
 
       {/* Add Product Widget */}
-      <AddProductWidget onAdd={handleAddProduct} />
+      <AddProductWidget onAdd={handleAddProduct} categories={setData.categories || []} />
+
+      {/* Group By Toggle */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '4px', border: '1px solid var(--color-border)' }}>
+          <button 
+            onClick={() => setGroupBy('category')}
+            style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', borderRadius: 'var(--radius-sm)', border: 'none', background: groupBy === 'category' ? 'var(--color-primary)' : 'transparent', color: groupBy === 'category' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
+          >Kategoriye Göre</button>
+          <button 
+            onClick={() => setGroupBy('signal')}
+            style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '500', borderRadius: 'var(--radius-sm)', border: 'none', background: groupBy === 'signal' ? 'var(--color-primary)' : 'transparent', color: groupBy === 'signal' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer', transition: 'all 0.2s' }}
+          >Sinyale Göre</button>
+        </div>
+      </div>
 
       {/* Product Groups */}
       <div className="sp-setdetail__products">
@@ -253,11 +349,11 @@ export default function SetDetailPage({ onSetDeleted }) {
             Sette henüz ürün yok. Aşağıdan link yapıştırarak veya kütüphaneden seçerek ürün ekleyin.
           </div>
         ) : (
-          Object.entries(grouped).map(([cat, catProducts]) => (
+          sortedGroupKeys.map((cat) => (
             <CategoryGroup
               key={cat}
               category={cat}
-              products={catProducts}
+              products={grouped[cat]}
               onToggleActive={handleToggleActive}
               onToggleLock={handleToggleLock}
               onUpdateLockedPrice={handleUpdateLockedPrice}
@@ -305,6 +401,64 @@ export default function SetDetailPage({ onSetDeleted }) {
               min="0"
               step="1000"
             />
+          </div>
+          <div className="sp-setdetail__settings-field">
+            <label>Kategoriler</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+              {(setData.categories || []).length === 0 && (
+                <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  Henüz kategori yok — aşağıdan ekleyebilirsin.
+                </span>
+              )}
+              {(setData.categories || []).map(cat => (
+                <div
+                  key={cat.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                    border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)',
+                    fontSize: '13px',
+                  }}
+                >
+                  {editingCategoryId === cat.id ? (
+                    <input
+                      autoFocus
+                      value={editingCategoryName}
+                      onChange={e => setEditingCategoryName(e.target.value)}
+                      onBlur={() => handleRenameCategory(cat.id, cat.name)}
+                      onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+                      style={{ width: '80px', border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: 'var(--color-text-primary)' }}
+                    />
+                  ) : (
+                    <span
+                      onClick={() => { setEditingCategoryId(cat.id); setEditingCategoryName(cat.name); }}
+                      style={{ cursor: 'pointer', color: 'var(--color-text-primary)' }}
+                      title="Yeniden adlandırmak için tıkla"
+                    >
+                      {cat.name}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleDeleteCategory(cat.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0, display: 'flex' }}
+                    title="Kategoriyi sil"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleAddCategory} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={e => setNewCategoryName(e.target.value)}
+                placeholder="Yeni kategori adı..."
+                className="sp-login__input"
+                style={{ flex: 1 }}
+              />
+              <Button type="submit" size="sm" variant="secondary">Ekle</Button>
+            </form>
           </div>
           <div className="sp-setdetail__settings-actions">
             <Button onClick={handleUpdateSet}>Kaydet</Button>

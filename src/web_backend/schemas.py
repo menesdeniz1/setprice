@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, model_validator, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 # --- Category Schemas ---
@@ -6,20 +6,31 @@ class CategoryCount(BaseModel):
     name: str
     count: int
 
+# --- Scraper Health Schema ---
+class DomainHealthResponse(BaseModel):
+    domain: str
+    success_count: int
+    failure_count: int
+    last_status: Optional[str] = None
+    last_checked_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 # --- Alternative Schemas ---
 class AlternativeBase(BaseModel):
     title: str
     price: float
     seller: Optional[str] = None
     link: str
+    match_type: Optional[str] = "similar"  # 'same_product' | 'similar'
+    match_confidence: Optional[float] = None
 
 class AlternativeResponse(AlternativeBase):
     id: int
     library_product_id: int
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- PriceHistory Schemas ---
@@ -30,8 +41,7 @@ class PriceHistoryResponse(BaseModel):
     seller: Optional[str] = None
     recorded_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Product Schemas ---
@@ -46,6 +56,7 @@ class ProductBase(BaseModel):
 class ProductCreate(BaseModel):
     original_link: Optional[str] = None
     library_product_id: Optional[int] = None
+    category: Optional[str] = None  # verilirse otomatik tahmini geçersiz kılar
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -62,6 +73,13 @@ class ProductResponse(ProductBase):
     current_seller: Optional[str] = None
     current_installment: Optional[str] = None
     status: str
+    ticker: Optional[str] = None
+    value_score: Optional[float] = None
+    satisfaction_score: Optional[float] = None
+    performance_score: Optional[float] = None
+    benchmark_match_name: Optional[str] = None
+    decision_signal: Optional[str] = "WAIT"
+    decision_reasoning: Optional[str] = None
     updated_at: datetime
 
     @model_validator(mode="before")
@@ -89,11 +107,17 @@ class ProductResponse(ProductBase):
                 "current_seller": lib.current_seller,
                 "current_installment": lib.current_installment,
                 "status": lib.status,
+                "ticker": lib.ticker,
+                "value_score": lib.value_score,
+                "satisfaction_score": lib.satisfaction_score,
+                "performance_score": lib.performance_score,
+                "benchmark_match_name": lib.benchmark_match_name,
+                "decision_signal": lib.decision_signal,
+                "decision_reasoning": lib.decision_reasoning,
             }
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- LibraryProduct Schemas ---
@@ -106,10 +130,43 @@ class LibraryProductResponse(BaseModel):
     current_seller: Optional[str] = None
     current_installment: Optional[str] = None
     status: str
+    ticker: Optional[str] = None
+    value_score: Optional[float] = None
+    satisfaction_score: Optional[float] = None
+    performance_score: Optional[float] = None
+    benchmark_match_name: Optional[str] = None
+    decision_signal: Optional[str] = "WAIT"
+    decision_reasoning: Optional[str] = None
+    benchmark_price: Optional[float] = None
+    price_alert_threshold: Optional[float] = None
+    rating: Optional[float] = None
+    review_count: Optional[int] = None
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Set Category Schemas ---
+class SetCategoryResponse(BaseModel):
+    id: int
+    set_id: int
+    name: str
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class SetCategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+
+class SetCategoryUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+
+
+# --- Set Template Schemas ---
+class SetTemplateInfo(BaseModel):
+    key: str
+    name: str
+    categories: List[str]
 
 
 # --- ProductSet Schemas ---
@@ -118,7 +175,7 @@ class ProductSetBase(BaseModel):
     target_budget: Optional[float] = 0.0
 
 class ProductSetCreate(ProductSetBase):
-    pass
+    template_key: Optional[str] = None
 
 class ProductSetUpdate(BaseModel):
     name: Optional[str] = None
@@ -127,34 +184,34 @@ class ProductSetUpdate(BaseModel):
 class ProductSetResponse(ProductSetBase):
     id: int
     user_id: int
+    template_name: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProductSetDetailed(ProductSetResponse):
     products: List[ProductResponse] = []
+    categories: List[SetCategoryResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- User Schemas ---
 class UserBase(BaseModel):
     email: EmailStr
 
-from pydantic import BaseModel, EmailStr, model_validator, Field
-
-# ... existing code up to UserCreate ...
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6)
 
 class UserResponse(UserBase):
     id: int
+    telegram_chat_id: Optional[str] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+class TelegramSettingsUpdate(BaseModel):
+    telegram_chat_id: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str
@@ -162,3 +219,20 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+
+# --- Alert Schemas ---
+class AlertResponse(BaseModel):
+    id: int
+    user_id: int
+    library_product_id: int
+    alert_type: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class AlertThresholdUpdate(BaseModel):
+    price_alert_threshold: Optional[float] = None

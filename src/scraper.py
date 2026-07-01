@@ -4,7 +4,7 @@ import random
 import time
 import urllib.parse
 import threading
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 import requests
 import cloudscraper
@@ -323,6 +323,54 @@ class Scraper:
         if meta and meta.get('content'):
             return meta.get('content')
         return None
+
+    def extract_rating_info(self, html: str) -> Tuple[Optional[float], Optional[int]]:
+        """HTML'den (özellikle JSON-LD) rating ve review count çıkarır."""
+        if not html: return None, None
+        soup = BeautifulSoup(html, 'lxml')
+        
+        rating = None
+        review_count = None
+        
+        # JSON-LD taraması
+        jsonld_scripts = soup.find_all('script', type='application/ld+json')
+        for script in jsonld_scripts:
+            try:
+                if not script.string: continue
+                data = json.loads(script.string)
+                
+                def find_rating(obj, depth=0):
+                    if depth > 5: return None
+                    if isinstance(obj, dict):
+                        if 'aggregateRating' in obj:
+                            return obj['aggregateRating']
+                        for v in obj.values():
+                            res = find_rating(v, depth+1)
+                            if res: return res
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            res = find_rating(item, depth+1)
+                            if res: return res
+                    return None
+                
+                agg_rating = find_rating(data)
+                if agg_rating and isinstance(agg_rating, dict):
+                    if 'ratingValue' in agg_rating:
+                        try: rating = float(str(agg_rating['ratingValue']).replace(',', '.'))
+                        except: pass
+                    if 'reviewCount' in agg_rating or 'ratingCount' in agg_rating:
+                        rc_val = agg_rating.get('reviewCount') or agg_rating.get('ratingCount')
+                        try: review_count = int(rc_val)
+                        except: pass
+                    
+                    if rating is not None:
+                        return rating, review_count
+            except:
+                pass
+                
+        # Bulunamadıysa sahte mantıklı veri üretelim (MVP için en azından DB şemasına uysun)
+        # TODO: CSS selector eklenebilir
+        return None, None
 
     def extract_installment(self, html: str) -> Optional[str]:
         """Sayfa metninden peşin fiyatına taksit bilgilerini regex ile tarar."""

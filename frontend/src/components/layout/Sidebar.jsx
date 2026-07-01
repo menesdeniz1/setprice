@@ -1,14 +1,17 @@
 import './Sidebar.css';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, X } from 'lucide-react';
+import { LayoutDashboard, MonitorSmartphone, Library, LogOut, Plus, Zap, X, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import AlertBell from '../ui/AlertBell';
+import NotificationSettingsModal from '../ui/NotificationSettingsModal';
 
 export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
-  const { user, logout } = useAuth();
+  const { user, logout, setUser } = useAuth();
   const navigate = useNavigate();
 
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
 
   const handleLogout = () => {
     if (!confirmLogout) {
@@ -35,15 +38,16 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
         <div className="sp-sidebar__logo-icon">
           <Zap size={20} />
         </div>
-        <div>
-          <span className="sp-sidebar__logo-text text-gradient">SetPrice</span>
-          <span className="sp-sidebar__logo-badge">Beta</span>
+        <div style={{ flex: 1 }}>
+          <span className="sp-sidebar__logo-text" style={{ color: '#FFFFFF' }}>SetPrice</span>
+          <span className="sp-sidebar__logo-badge" style={{ background: 'rgba(255,216,20,0.2)', color: '#FFD814' }}>Beta</span>
         </div>
+        <AlertBell />
       </div>
 
       {/* Navigation */}
       <nav className="sp-sidebar__nav">
-        <div className="sp-sidebar__section-label">Genel</div>
+        <div className="sp-sidebar__section-label">İstihbarat</div>
 
         <NavLink to="/" end className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
           <LayoutDashboard size={18} />
@@ -51,7 +55,7 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
         </NavLink>
 
         <div className="sp-sidebar__section-label" style={{ marginTop: 'var(--space-5)' }}>
-          Setlerim
+          Portfolio
         </div>
 
         {sets.map((set) => (
@@ -67,16 +71,16 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
 
         <button className="sp-sidebar__link sp-sidebar__link--add" onClick={onCreateSet}>
           <Plus size={16} />
-          <span>Yeni Set Oluştur</span>
+          <span>Yeni Portföy Ekle</span>
         </button>
 
         <div className="sp-sidebar__section-label" style={{ marginTop: 'var(--space-5)' }}>
-          Araçlar
+          İzleme Listesi
         </div>
 
         <NavLink to="/library" className={({ isActive }) => `sp-sidebar__link ${isActive ? 'sp-sidebar__link--active' : ''}`}>
           <Library size={18} />
-          <span>Kütüphane</span>
+          <span>Watchlist (Kütüphane)</span>
         </NavLink>
       </nav>
 
@@ -89,12 +93,22 @@ export default function Sidebar({ sets = [], onCreateSet, isOpen, onClose }) {
           <div className="sp-sidebar__user-info">
             <span className="sp-sidebar__user-email truncate">{user?.email || 'Kullanıcı'}</span>
           </div>
+          <button className="sp-sidebar__logout" onClick={() => setShowNotifSettings(true)} title="Bildirim Ayarları (Telegram)">
+            <Send size={16} />
+          </button>
           <button className="sp-sidebar__logout" onClick={handleLogout} title="Çıkış Yap">
             <LogOut size={16} />
           </button>
         </div>
       </div>
     </aside>
+
+    <NotificationSettingsModal
+      isOpen={showNotifSettings}
+      onClose={() => setShowNotifSettings(false)}
+      user={user}
+      onUserUpdate={setUser}
+    />
     </>
   );
 }

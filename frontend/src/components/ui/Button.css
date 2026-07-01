@@ -49,27 +49,37 @@
 /* Primary */
 .sp-btn--primary {
   background: var(--gradient-primary);
-  color: white;
-  border: none;
-  box-shadow: var(--shadow-sm), 0 0 0 0 rgba(99, 102, 241, 0);
+  color: var(--color-text-inverse);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .sp-btn--primary:not(:disabled):hover {
-  box-shadow: var(--shadow-md), var(--shadow-glow-primary);
-  filter: brightness(1.1);
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.sp-btn--primary:not(:disabled):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 /* Secondary */
 .sp-btn--secondary {
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-surface);
   color: var(--color-text-primary);
-  border-color: var(--color-border);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .sp-btn--secondary:not(:disabled):hover {
   background: var(--color-bg-surface-hover);
-  border-color: var(--color-border-active);
-  color: var(--color-primary-hover);
+  border-color: #D1D5DB; /* Slate 300 */
+}
+
+.sp-btn--secondary:not(:disabled):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 /* Ghost */
@@ -80,31 +90,37 @@
 }
 
 .sp-btn--ghost:not(:disabled):hover {
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-surface-hover);
   color: var(--color-text-primary);
 }
 
 /* Danger */
 .sp-btn--danger {
-  background: var(--color-danger-muted);
+  background: #FFFFFF;
   color: var(--color-danger);
-  border-color: rgba(239, 68, 68, 0.2);
+  border: 1px solid var(--color-danger-muted);
+  box-shadow: var(--shadow-sm);
 }
 
 .sp-btn--danger:not(:disabled):hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
+  background: var(--color-danger-muted);
+  border-color: var(--color-danger);
+}
+
+.sp-btn--danger:not(:disabled):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
 }
 
 /* Success */
 .sp-btn--success {
-  background: var(--gradient-success);
+  background: var(--color-success);
   color: white;
   border: none;
+  border-radius: 100px;
 }
 
 .sp-btn--success:not(:disabled):hover {
-  box-shadow: var(--shadow-md), var(--shadow-glow-success);
   filter: brightness(1.1);
 }
 

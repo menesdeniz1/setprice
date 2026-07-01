@@ -1,9 +1,13 @@
 import bcrypt
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime
 from typing import List, Optional
 
 from . import models, schemas
+from .set_templates import get_template
+from . import benchmark_utils
+from .notifiers import notify_user
 
 # --- Password Utilities ---
 def get_password_hash(password: str) -> str:
@@ -30,6 +34,31 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db.refresh(db_user)
     return db_user
 
+def update_telegram_chat_id(db: Session, db_user: models.User, chat_id: Optional[str]) -> models.User:
+    db_user.telegram_chat_id = chat_id
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+# --- Scraper Health (Faz 5 — hafif gözlemlenebilirlik) ---
+def record_domain_health(db: Session, domain: str, success: bool) -> None:
+    entry = db.query(models.DomainHealth).filter(models.DomainHealth.domain == domain).first()
+    if not entry:
+        entry = models.DomainHealth(domain=domain, success_count=0, failure_count=0)
+        db.add(entry)
+    if success:
+        entry.success_count += 1
+        entry.last_status = "OK"
+    else:
+        entry.failure_count += 1
+        entry.last_status = "FAILED"
+    entry.last_checked_at = datetime.utcnow()
+    db.commit()
+
+def get_domain_health(db: Session) -> List[models.DomainHealth]:
+    return db.query(models.DomainHealth).order_by(models.DomainHealth.domain).all()
+
 
 # --- Set CRUD ---
 def get_sets_by_user(db: Session, user_id: int) -> List[models.ProductSet]:
@@ -39,10 +68,17 @@ def get_set_by_id(db: Session, set_id: int) -> Optional[models.ProductSet]:
     return db.query(models.ProductSet).filter(models.ProductSet.id == set_id).first()
 
 def create_set(db: Session, set_in: schemas.ProductSetCreate, user_id: int) -> models.ProductSet:
-    db_set = models.ProductSet(**set_in.model_dump(), user_id=user_id)
+    template = get_template(set_in.template_key)
+    data = set_in.model_dump(exclude={"template_key"})
+    db_set = models.ProductSet(**data, user_id=user_id, template_name=template["name"] if template else None)
     db.add(db_set)
     db.commit()
     db.refresh(db_set)
+
+    if template and template["categories"]:
+        seed_set_categories(db, db_set.id, template["categories"])
+        db.refresh(db_set)
+
     return db_set
 
 def update_set(db: Session, db_set: models.ProductSet, set_update: schemas.ProductSetUpdate) -> models.ProductSet:
@@ -60,6 +96,54 @@ def delete_set(db: Session, set_id: int) -> bool:
         db.commit()
         return True
     return False
+
+
+# --- Set Category CRUD ---
+def get_set_categories(db: Session, set_id: int) -> List[models.SetCategory]:
+    return db.query(models.SetCategory).filter(
+        models.SetCategory.set_id == set_id
+    ).order_by(models.SetCategory.sort_order, models.SetCategory.id).all()
+
+def seed_set_categories(db: Session, set_id: int, category_names: List[str]) -> None:
+    for i, name in enumerate(category_names):
+        db.add(models.SetCategory(set_id=set_id, name=name, sort_order=i))
+    db.commit()
+
+def add_set_category(db: Session, set_id: int, name: str) -> models.SetCategory:
+    existing = db.query(models.SetCategory).filter(
+        models.SetCategory.set_id == set_id, models.SetCategory.name == name
+    ).first()
+    if existing:
+        return existing
+    max_order = db.query(func.max(models.SetCategory.sort_order)).filter(
+        models.SetCategory.set_id == set_id
+    ).scalar() or 0
+    cat = models.SetCategory(set_id=set_id, name=name, sort_order=max_order + 1)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+def rename_set_category(db: Session, set_id: int, category_id: int, new_name: str) -> Optional[models.SetCategory]:
+    cat = db.query(models.SetCategory).filter(
+        models.SetCategory.id == category_id, models.SetCategory.set_id == set_id
+    ).first()
+    if not cat:
+        return None
+    cat.name = new_name
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+def delete_set_category(db: Session, set_id: int, category_id: int) -> bool:
+    cat = db.query(models.SetCategory).filter(
+        models.SetCategory.id == category_id, models.SetCategory.set_id == set_id
+    ).first()
+    if not cat:
+        return False
+    db.delete(cat)
+    db.commit()
+    return True
 
 
 # --- Product CRUD ---
@@ -134,6 +218,16 @@ def get_library_products_by_category(db: Session, category: str, user_id: int) -
 def get_or_create_library_product(db: Session, name: str, category: str, original_link: str, user_id: int) -> models.LibraryProduct:
     db_lib = get_library_product_by_link(db, original_link, user_id)
     if not db_lib:
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+        try:
+            from decision_engine import DecisionEngine
+            ticker = DecisionEngine().generate_ticker(name, category)
+        except Exception:
+            import random
+            ticker = f"UNK-{random.randint(100, 999)}"
+            
         db_lib = models.LibraryProduct(
             user_id=user_id,
             name=name,
@@ -142,7 +236,8 @@ def get_or_create_library_product(db: Session, name: str, category: str, origina
             current_price=None,
             current_seller=None,
             current_installment=None,
-            status="BEKLEMEDE"
+            status="BEKLEMEDE",
+            ticker=ticker
         )
         db.add(db_lib)
         db.commit()
@@ -203,3 +298,174 @@ def get_alternatives_by_product(db: Session, product_id: int) -> List[models.Alt
     if not db_product:
         return []
     return db.query(models.Alternative).filter(models.Alternative.library_product_id == db_product.library_product_id).order_by(models.Alternative.price.asc()).all()
+
+def update_decision_signals(db: Session, library_product_ids: List[int]) -> None:
+    import sys, os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    try:
+        from decision_engine import DecisionEngine
+        engine = DecisionEngine()
+    except Exception:
+        return
+
+    for lp_id in library_product_ids:
+        db_lib = db.query(models.LibraryProduct).filter(models.LibraryProduct.id == lp_id).first()
+        if not db_lib:
+            continue
+
+        old_signal = db_lib.decision_signal
+        old_price = db_lib.current_price
+
+        # Gerçek history
+        history = [h.price for h in db_lib.history]
+
+        # Benchmark: önce "aynı ürün, farklı satıcı" eşleşmelerinin ortalaması
+        # (elma-elma kıyas), yoksa tüm muadillere düş
+        same_product_prices = [a.price for a in db_lib.alternatives if a.price and (a.match_type or "similar") == "same_product"]
+        alts = same_product_prices or [a.price for a in db_lib.alternatives if a.price]
+        benchmark = sum(alts) / len(alts) if alts else None
+
+        # Gerçek rating/review (modelden, scraper tarafından doldurulacak)
+        rating = db_lib.rating
+        review_count = db_lib.review_count
+
+        # Performans skoru (CPU/GPU gibi kategoriler için, benchmark_utils'teki
+        # küratörlü başlangıç veri setine göre)
+        match = benchmark_utils.find_best_match(db, db_lib.name, db_lib.category)
+        if match:
+            match_name, raw_score = match
+            db_lib.benchmark_match_name = match_name
+            db_lib.performance_score = benchmark_utils.normalize_score(db, db_lib.category, raw_score)
+        else:
+            db_lib.benchmark_match_name = None
+            db_lib.performance_score = None
+
+        # generate_signal artık 4 değer döndürüyor (signal, v_score, s_score, reasoning)
+        result = engine.generate_signal(
+            current_price=db_lib.current_price or 0.0,
+            history=history,
+            benchmark_price=benchmark,
+            rating=rating,
+            review_count=review_count
+        )
+        signal, v_score, s_score, reasoning = result
+
+        db_lib.decision_signal = signal
+        db_lib.value_score = v_score
+        db_lib.satisfaction_score = s_score
+        db_lib.benchmark_price = benchmark
+        db_lib.decision_reasoning = reasoning
+
+        # ── Alert Üretimi ──
+
+        # 1) Threshold Alert
+        if (db_lib.price_alert_threshold and db_lib.current_price
+                and db_lib.current_price <= db_lib.price_alert_threshold):
+            _create_alert_if_not_exists(
+                db, db_lib.user_id, lp_id,
+                alert_type="THRESHOLD",
+                title=f"Fiyat Alarmı: {db_lib.name}",
+                message=f"Fiyat hedef seviyenin ({db_lib.price_alert_threshold:.0f}₺) altına düştü: {db_lib.current_price:.0f}₺"
+            )
+
+        # 2) Signal Change Alert (önceki sinyalden farklıysa)
+        if old_signal and old_signal != signal:
+            emoji = {"BUY": "🟢", "WAIT": "🟡", "AVOID": "🔴"}.get(signal, "")
+            _create_alert_if_not_exists(
+                db, db_lib.user_id, lp_id,
+                alert_type="SIGNAL_CHANGE",
+                title=f"Sinyal Değişimi: {db_lib.name}",
+                message=f"{old_signal} → {signal} {emoji} | {reasoning}"
+            )
+
+        # 3) Bull-trap Alert
+        if engine.detect_bull_trap(db_lib.current_price or 0, history):
+            _create_alert_if_not_exists(
+                db, db_lib.user_id, lp_id,
+                alert_type="BULL_TRAP",
+                title=f"Sahte İndirim: {db_lib.name}",
+                message=f"Bu üründe sahte indirim (bull-trap) tespit edildi. Fiyat şişirilip düşürülmüş."
+            )
+
+        # 4) Trend Dip Alert
+        bottom = engine.detect_bottom_zone(db_lib.current_price or 0, history)
+        if bottom["is_near_bottom"] and len(history) >= 5:
+            _create_alert_if_not_exists(
+                db, db_lib.user_id, lp_id,
+                alert_type="TREND_DIP",
+                title=f"Dip Bölge: {db_lib.name}",
+                message=f"Bu ürün tarihsel dip bölgede (alt %{bottom['percentile']:.0f}). Alım fırsatı olabilir."
+            )
+
+    db.commit()
+
+
+def _create_alert_if_not_exists(db: Session, user_id: int, lp_id: int, alert_type: str, title: str, message: str):
+    """Son 24 saat içinde aynı tipte alert varsa tekrar oluşturma."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    existing = db.query(models.Alert).filter(
+        models.Alert.user_id == user_id,
+        models.Alert.library_product_id == lp_id,
+        models.Alert.alert_type == alert_type,
+        models.Alert.created_at >= cutoff
+    ).first()
+    if existing:
+        return
+    alert = models.Alert(
+        user_id=user_id,
+        library_product_id=lp_id,
+        alert_type=alert_type,
+        title=title,
+        message=message
+    )
+    db.add(alert)
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user:
+        notify_user(user, title, message)
+
+
+# --- Alert CRUD ---
+def get_alerts(db: Session, user_id: int, unread_only: bool = False) -> List[models.Alert]:
+    query = db.query(models.Alert).filter(models.Alert.user_id == user_id)
+    if unread_only:
+        query = query.filter(models.Alert.is_read == False)
+    return query.order_by(models.Alert.created_at.desc()).limit(50).all()
+
+def get_unread_alert_count(db: Session, user_id: int) -> int:
+    return db.query(models.Alert).filter(
+        models.Alert.user_id == user_id,
+        models.Alert.is_read == False
+    ).count()
+
+def mark_alert_read(db: Session, alert_id: int, user_id: int) -> bool:
+    alert = db.query(models.Alert).filter(
+        models.Alert.id == alert_id,
+        models.Alert.user_id == user_id
+    ).first()
+    if alert:
+        alert.is_read = True
+        db.commit()
+        return True
+    return False
+
+def mark_all_alerts_read(db: Session, user_id: int) -> int:
+    count = db.query(models.Alert).filter(
+        models.Alert.user_id == user_id,
+        models.Alert.is_read == False
+    ).update({"is_read": True})
+    db.commit()
+    return count
+
+def set_price_alert_threshold(db: Session, library_product_id: int, user_id: int, threshold: Optional[float]) -> bool:
+    db_lib = db.query(models.LibraryProduct).filter(
+        models.LibraryProduct.id == library_product_id,
+        models.LibraryProduct.user_id == user_id
+    ).first()
+    if db_lib:
+        db_lib.price_alert_threshold = threshold
+        db.commit()
+        return True
+    return False
+

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Lock, Unlock, Trash2, ExternalLink } from 'lucide-react';
 import { formatPrice } from '../../utils/formatPrice';
 import { STATUS_CONFIG } from '../../utils/constants';
+import SignalBadge from '../products/SignalBadge';
 
 export default function ProductCard({ product, onToggleActive, onToggleLock, onUpdateLockedPrice, onDelete, onClick }) {
   const price = product.current_price || product.locked_price;
@@ -60,7 +61,7 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
             <ExternalLink size={12} />
           </a>
         </div>
-        <div className="sp-prodcard__meta">
+        <div className="sp-prodcard__meta" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
           <span className="sp-prodcard__seller">{product.current_seller || 'Bilinmiyor'}</span>
           <span
             className="sp-prodcard__status"
@@ -68,7 +69,26 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
           >
             {statusCfg.label}
           </span>
+          {product.decision_signal && (
+            <SignalBadge signal={product.decision_signal} valueScore={product.value_score} />
+          )}
+          {product.performance_score != null && (
+            <span
+              title={product.benchmark_match_name ? `Referans: ${product.benchmark_match_name} (PassMark tahmini)` : undefined}
+              style={{
+                fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-full)',
+                background: 'var(--color-secondary-muted)', color: 'var(--color-secondary)', cursor: 'help',
+              }}
+            >
+              Performans: {Math.round(product.performance_score)}/100
+            </span>
+          )}
         </div>
+        {product.decision_reasoning && (
+          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.3' }}>
+            {product.decision_reasoning}
+          </div>
+        )}
       </div>
 
       {/* Price */}
@@ -87,9 +107,9 @@ export default function ProductCard({ product, onToggleActive, onToggleLock, onU
                 width: '80px',
                 padding: '2px 4px',
                 borderRadius: '4px',
-                border: '1px solid var(--primary)',
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-primary)',
+                border: '1px solid var(--color-primary)',
+                background: 'var(--color-bg-elevated)',
+                color: 'var(--color-text-primary)',
                 textAlign: 'right'
               }}
               step="any"

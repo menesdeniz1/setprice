@@ -1,7 +1,7 @@
 import './ProductDetailPanel.css';
 import { useState, useEffect } from 'react';
-import { X, ExternalLink, TrendingDown, BarChart3, ArrowRightLeft } from 'lucide-react';
-import { getProductHistory, getProductAlternatives } from '../../api/client';
+import { X, ExternalLink, TrendingDown, BarChart3, ArrowRightLeft, Target } from 'lucide-react';
+import { getProductHistory, getProductAlternatives, setPriceThreshold } from '../../api/client';
 import { formatPrice, formatDate, formatRelativeTime } from '../../utils/formatPrice';
 import { STATUS_CONFIG } from '../../utils/constants';
 import { useToast } from '../../context/ToastContext';
@@ -14,6 +14,10 @@ export default function ProductDetailPanel({ product, onClose }) {
   const [history, setHistory] = useState([]);
   const [alternatives, setAlternatives] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [threshold, setThreshold] = useState(product.price_alert_threshold || '');
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [altMode, setAltMode] = useState('same_product'); // 'same_product' | 'similar'
+  const [altSort, setAltSort] = useState('price'); // 'price' | 'smart'
   const toast = useToast();
 
   const loadData = React.useCallback(async () => {
@@ -25,6 +29,8 @@ export default function ProductDetailPanel({ product, onClose }) {
       ]);
       setHistory(hist);
       setAlternatives(alts);
+      const hasSameProduct = alts.some(a => (a.match_type || 'similar') === 'same_product');
+      setAltMode(hasSameProduct ? 'same_product' : 'similar');
     } catch (err) {
       console.error(err);
       toast.error('Detay verileri yüklenirken bir hata oluştu.');
@@ -40,11 +46,46 @@ export default function ProductDetailPanel({ product, onClose }) {
   const price = product.current_price || product.locked_price || 0;
   const statusCfg = STATUS_CONFIG[product.status] || STATUS_CONFIG.BEKLEMEDE;
 
-  // Find cheapest alternative
-  const cheapestAlt = alternatives.length > 0
-    ? alternatives.reduce((min, a) => a.price < min.price ? a : min, alternatives[0])
+  const sameProductAlts = alternatives.filter(a => (a.match_type || 'similar') === 'same_product');
+  const similarAlts = alternatives.filter(a => (a.match_type || 'similar') === 'similar');
+
+  // Tasarruf mesajı için önce "aynı ürün" eşleşmelerini tercih et (elma-elma kıyas),
+  // hiç yoksa muadillere düş
+  const savingsPool = sameProductAlts.length > 0 ? sameProductAlts : alternatives;
+  const cheapestAlt = savingsPool.length > 0
+    ? savingsPool.reduce((min, a) => a.price < min.price ? a : min, savingsPool[0])
     : null;
   const savings = cheapestAlt && cheapestAlt.price < price ? price - cheapestAlt.price : 0;
+
+  const valueScore = (altPrice) => {
+    if (!price) return 50;
+    const ratio = altPrice / price;
+    return Math.max(0, Math.min(100, 50 + (1 - ratio) * 100));
+  };
+
+  const activeAltList = altMode === 'same_product' ? sameProductAlts : similarAlts;
+  const sortedAlts = [...activeAltList].sort((a, b) => {
+    if (altSort === 'price') return a.price - b.price;
+    // Akıllı sıralama: fiyat avantajı skoru, eşitlikte eşleşme güveni
+    const scoreDiff = valueScore(b.price) - valueScore(a.price);
+    if (scoreDiff !== 0) return scoreDiff;
+    return (b.match_confidence || 0) - (a.match_confidence || 0);
+  });
+
+  const handleSaveThreshold = async () => {
+    if (savingThreshold) return;
+    setSavingThreshold(true);
+    try {
+      const val = threshold ? parseFloat(threshold) : null;
+      await setPriceThreshold(product.library_product_id || product.id, val);
+      toast.success('Fiyat alarmı kaydedildi');
+    } catch (e) {
+      toast.error('Alarm kaydedilemedi');
+    } finally {
+      setSavingThreshold(false);
+    }
+  };
+
 
   return (
     <>
@@ -87,6 +128,29 @@ export default function ProductDetailPanel({ product, onClose }) {
             <ExternalLink size={13} />
             Mağazaya Git
           </a>
+        </div>
+        
+        {/* Alert Threshold Block */}
+        <div style={{ padding: '0 var(--space-6) var(--space-4)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Target size={14} color="var(--color-text-secondary)" />
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Hedef Fiyat:</span>
+          <input 
+            type="number" 
+            value={threshold} 
+            onChange={e => setThreshold(e.target.value)}
+            onBlur={handleSaveThreshold}
+            onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+            placeholder="₺0.00"
+            style={{
+              padding: '4px 8px',
+              borderRadius: '4px',
+              border: '1px solid var(--color-border)',
+              fontSize: '12px',
+              width: '80px',
+              background: 'var(--color-bg-elevated)',
+              color: 'var(--color-text-primary)'
+            }}
+          />
         </div>
 
         {/* Tabs */}
@@ -143,35 +207,77 @@ export default function ProductDetailPanel({ product, onClose }) {
                   Bu ürün için alternatif bulunamadı. Tarama yapıldıktan sonra Akakçe üzerinden muadiller aranır.
                 </div>
               ) : (
-                <div className="sp-panel__alt-list">
-                  {alternatives.map((alt, i) => {
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', padding: '0 var(--space-6) var(--space-4)' }}>
+                    <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '3px', border: '1px solid var(--color-border)' }}>
+                      <button
+                        onClick={() => setAltMode('same_product')}
+                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altMode === 'same_product' ? 'var(--color-primary)' : 'transparent', color: altMode === 'same_product' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer' }}
+                      >
+                        Başka Mağazada ({sameProductAlts.length})
+                      </button>
+                      <button
+                        onClick={() => setAltMode('similar')}
+                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altMode === 'similar' ? 'var(--color-primary)' : 'transparent', color: altMode === 'similar' ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)', cursor: 'pointer' }}
+                      >
+                        Muadil Ürünler ({similarAlts.length})
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', padding: '3px', border: '1px solid var(--color-border)' }}>
+                      <button
+                        onClick={() => setAltSort('price')}
+                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altSort === 'price' ? 'var(--color-secondary)' : 'transparent', color: altSort === 'price' ? '#fff' : 'var(--color-text-secondary)', cursor: 'pointer' }}
+                      >
+                        Fiyata Göre
+                      </button>
+                      <button
+                        onClick={() => setAltSort('smart')}
+                        style={{ padding: '5px 10px', fontSize: '12px', fontWeight: 500, borderRadius: 'var(--radius-sm)', border: 'none', background: altSort === 'smart' ? 'var(--color-secondary)' : 'transparent', color: altSort === 'smart' ? '#fff' : 'var(--color-text-secondary)', cursor: 'pointer' }}
+                      >
+                        Akıllı Sıralama
+                      </button>
+                    </div>
+                  </div>
+
+                  {sortedAlts.length === 0 ? (
+                    <div className="sp-panel__empty">
+                      {altMode === 'same_product'
+                        ? 'Bu üründen başka mağazada satan, başlığı yeterince benzer bir sonuç bulunamadı.'
+                        : 'Bu ürün için spec bazlı bir muadil bulunamadı.'}
+                    </div>
+                  ) : (
+                <div style={{ background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', padding: '12px 16px', background: 'var(--color-bg-surface-hover)', borderBottom: '1px solid var(--color-border)', fontSize: '12px', fontWeight: '600', color: 'var(--color-text-secondary)' }}>
+                    <div>Satıcı</div>
+                    <div>Durum / Kargo</div>
+                    <div>Fiyat</div>
+                    <div></div>
+                  </div>
+                  {sortedAlts.map((alt, i) => {
                     const isCheaper = alt.price < price;
                     return (
-                      <a
-                        key={alt.id || i}
-                        href={alt.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`sp-panel__alt-card ${isCheaper ? 'sp-panel__alt-card--cheaper' : ''}`}
-                      >
-                        <div className="sp-panel__alt-info">
-                          <span className="sp-panel__alt-title truncate">{alt.title}</span>
-                          <span className="sp-panel__alt-seller">{alt.seller || 'Bilinmiyor'}</span>
+                      <div key={alt.id || i} style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', padding: '16px', alignItems: 'center', borderBottom: '1px solid var(--color-border)', background: isCheaper ? 'var(--color-success-muted)' : 'transparent', transition: 'background 0.2s' }}>
+                        <div>
+                          <div style={{ fontWeight: '500', color: 'var(--color-text-primary)', fontSize: '14px' }}>{alt.seller || 'Bilinmiyor'}</div>
+                          {isCheaper && <div style={{ fontSize: '11px', color: 'var(--color-success)', fontWeight: '600', marginTop: '2px' }}>⭐ En Ucuz</div>}
                         </div>
-                        <div className="sp-panel__alt-price-area">
-                          <span className={`sp-panel__alt-price font-mono ${isCheaper ? 'sp-panel__alt-price--green' : ''}`}>
-                            {formatPrice(alt.price)}
-                          </span>
-                          {isCheaper && (
-                            <span className="sp-panel__alt-saving">
-                              -{formatPrice(price - alt.price, false)} ₺
-                            </span>
-                          )}
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                          <span title={alt.title} className="truncate" style={{ maxWidth: '120px', display: 'inline-block' }}>{alt.title}</span>
                         </div>
-                      </a>
+                        <div style={{ fontWeight: '700', fontSize: '15px', color: isCheaper ? 'var(--color-success)' : 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>
+                          {formatPrice(alt.price)}
+                        </div>
+                        <div>
+                          <a href={alt.link} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', background: 'var(--color-secondary)', color: '#fff', borderRadius: '4px', fontSize: '12px', fontWeight: '500', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            Satıcıya Git <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
+                  )}
+                </>
               )}
             </div>
           )}

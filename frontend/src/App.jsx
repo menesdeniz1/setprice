@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
-import { getSets, createSet } from './api/client';
+import { getSets, createSet, getSetTemplates } from './api/client';
 
 import Layout from './components/layout/Layout';
 import LoginPage from './components/auth/LoginPage';
@@ -23,6 +23,17 @@ function App() {
   const [newSetName, setNewSetName] = useState('');
   const [newSetBudget, setNewSetBudget] = useState('');
   const [creating, setCreating] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState(null);
+
+  useEffect(() => {
+    getSetTemplates()
+      .then(data => {
+        setTemplates(Array.isArray(data) ? data : []);
+        if (Array.isArray(data) && data.length > 0) setSelectedTemplateKey(data[0].key);
+      })
+      .catch(() => {});
+  }, []);
 
   const loadSets = useCallback(async () => {
     if (!user) return;
@@ -59,7 +70,7 @@ function App() {
     }
     setCreating(true);
     try {
-      const newSet = await createSet(newSetName.trim(), parseFloat(newSetBudget) || 0);
+      const newSet = await createSet(newSetName.trim(), parseFloat(newSetBudget) || 0, selectedTemplateKey);
       setSets(prev => [...prev, newSet]);
       setShowCreateSet(false);
       setNewSetName('');
@@ -133,6 +144,38 @@ function App() {
         title="Yeni Set Oluştur"
       >
         <form onSubmit={handleCreateSet} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+          {templates.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                Şablon
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-2)' }}>
+                {templates.map(t => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setSelectedTemplateKey(t.key)}
+                    style={{
+                      padding: 'var(--space-3)',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1px solid ${selectedTemplateKey === t.key ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      background: selectedTemplateKey === t.key ? 'var(--color-primary-muted)' : 'var(--color-bg-elevated)',
+                      color: 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: 'var(--text-sm)',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>{t.name}</div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                      {t.categories.length > 0 ? t.categories.slice(0, 3).join(', ') + (t.categories.length > 3 ? '...' : '') : 'Kategorileri kendin belirle'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             <label style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
               Set Adı

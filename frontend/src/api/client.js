@@ -86,6 +86,17 @@ export async function getMe() {
   return request('auth/me');
 }
 
+export async function updateTelegramSettings(chatId) {
+  return request('auth/telegram', {
+    method: 'PUT',
+    body: { telegram_chat_id: chatId || null },
+  });
+}
+
+export async function sendTelegramTest() {
+  return request('auth/telegram/test', { method: 'POST' });
+}
+
 // --- Sets ---
 export async function getSets() {
   return request('sets');
@@ -95,11 +106,38 @@ export async function getSetById(setId) {
   return request(`sets/${setId}`);
 }
 
-export async function createSet(name, targetBudget = 0) {
+export async function createSet(name, targetBudget = 0, templateKey = null) {
   return request('sets', {
     method: 'POST',
-    body: { name, target_budget: targetBudget },
+    body: { name, target_budget: targetBudget, template_key: templateKey },
   });
+}
+
+export async function getSetTemplates() {
+  return request('set-templates');
+}
+
+// --- Set Categories ---
+export async function getSetCategories(setId) {
+  return request(`sets/${setId}/categories`);
+}
+
+export async function addSetCategory(setId, name) {
+  return request(`sets/${setId}/categories`, {
+    method: 'POST',
+    body: { name },
+  });
+}
+
+export async function renameSetCategory(setId, categoryId, name) {
+  return request(`sets/${setId}/categories/${categoryId}`, {
+    method: 'PUT',
+    body: { name },
+  });
+}
+
+export async function deleteSetCategory(setId, categoryId) {
+  return request(`sets/${setId}/categories/${categoryId}`, { method: 'DELETE' });
 }
 
 export async function updateSet(setId, data) {
@@ -114,10 +152,11 @@ export async function deleteSet(setId) {
 }
 
 // --- Products ---
-export async function addProductToSet(setId, { originalLink, libraryProductId }) {
+export async function addProductToSet(setId, { originalLink, libraryProductId, category }) {
   const body = {};
   if (libraryProductId) body.library_product_id = libraryProductId;
   else if (originalLink) body.original_link = originalLink;
+  if (category) body.category = category;
 
   return request(`sets/${setId}/products`, {
     method: 'POST',
@@ -177,6 +216,31 @@ export async function getProductHistory(productId) {
 
 export async function getProductAlternatives(productId) {
   return request(`products/${productId}/compare`);
+}
+
+// --- Alerts ---
+export async function getAlerts(unreadOnly = false) {
+  const query = unreadOnly ? '?unread_only=true' : '';
+  return request(`alerts${query}`);
+}
+
+export async function getUnreadAlertCount() {
+  return request('alerts/count');
+}
+
+export async function markAlertRead(alertId) {
+  return request(`alerts/${alertId}/read`, { method: 'PUT' });
+}
+
+export async function markAllAlertsRead() {
+  return request('alerts/read-all', { method: 'PUT' });
+}
+
+export async function setPriceThreshold(libraryProductId, threshold) {
+  return request(`library/products/${libraryProductId}/threshold`, {
+    method: 'PUT',
+    body: { price_alert_threshold: threshold }
+  });
 }
 
 // Token utilities for external use

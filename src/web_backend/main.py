@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
+import secrets
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
@@ -11,16 +13,25 @@ import urllib.parse
 from contextlib import asynccontextmanager
 import asyncio
 
+logger = logging.getLogger("setprice.web")
+
 from src.config_loader import ConfigLoader
 from src.scraper import Scraper
 from src.akakce import AkakceSearcher
 from src.logger import setup_logger
 
-from .database import engine, Base, get_db
+from .database import engine, Base, get_db, run_lightweight_migrations, SessionLocal
 from . import models, schemas, crud, tasks
+from .category_utils import infer_category
+from .set_templates import SET_TEMPLATES
+from .benchmark_utils import seed_benchmark_entries
 
-# Tabloları oluştur
+# Tabloları oluştur, sonra var olan tablolara eklenen yeni kolonları uygula
 Base.metadata.create_all(bind=engine)
+run_lightweight_migrations()
+
+with SessionLocal() as _seed_db:
+    seed_benchmark_entries(_seed_db)
 
 async def periodic_library_scan():
     while True:
@@ -32,27 +43,47 @@ async def periodic_library_scan():
         except Exception as e:
             print(f"[Periodic] Tarama hatası: {e}")
 
+USE_CELERY = os.environ.get("USE_CELERY", "false").lower() == "true"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    task = asyncio.create_task(periodic_library_scan())
+    # Startup — USE_CELERY=true ise periyodik tarama Celery Beat'e devredilir
+    # (bkz. tasks.py), burada tekrar başlatılmaz.
+    task = None
+    if not USE_CELERY:
+        task = asyncio.create_task(periodic_library_scan())
     yield
     # Shutdown
-    task.cancel()
+    if task:
+        task.cancel()
 
 app = FastAPI(title="SetPrice API", version="1.0.0", lifespan=lifespan)
 
-# CORS izinleri
+# CORS izinleri — env'den okunur, virgülle ayrılmış origin listesi.
+# Belirtilmezse sadece yerel geliştirme sunucusuna izin verilir.
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "http://localhost:3000")
+CORS_ORIGINS = [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# JWT Ayarları
-SECRET_KEY = os.environ.get("JWT_SECRET", "9f82d2a939f72b7a9e3a6c8e9d2b1f8c3e4a5d6e7f8a9b0c1d2e3f4a5b6c7d8e")
+# JWT Ayarları — JWT_SECRET env'de yoksa process başına rastgele bir secret
+# üretilir. Bu, repo içine sabit/tahmin edilebilir bir secret gömmekten daha
+# güvenlidir; tek dezavantajı sunucu her yeniden başladığında mevcut
+# token'ların geçersiz olmasıdır (dev/tek-instance kullanım için kabul edilebilir).
+SECRET_KEY = os.environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning(
+        "JWT_SECRET ortam değişkeni ayarlanmamış! Process başına rastgele bir "
+        "secret üretildi — sunucu yeniden başladığında tüm oturumlar geçersiz "
+        "olacak. Kalıcı oturumlar için JWT_SECRET'i ortam değişkeni olarak ayarlayın."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 gün
 
@@ -114,6 +145,27 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
 
+@app.put("/api/auth/telegram", response_model=schemas.UserResponse)
+def update_telegram_settings(
+    settings_in: schemas.TelegramSettingsUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return crud.update_telegram_chat_id(db, current_user, settings_in.telegram_chat_id)
+
+@app.post("/api/auth/telegram/test")
+def send_telegram_test(current_user: models.User = Depends(get_current_user)):
+    from .notifiers import TelegramNotifier
+    notifier = TelegramNotifier()
+    if not notifier.is_configured():
+        raise HTTPException(status_code=400, detail="Sunucuda TELEGRAM_BOT_TOKEN ayarlanmamış")
+    if not current_user.telegram_chat_id:
+        raise HTTPException(status_code=400, detail="Önce Telegram Chat ID'nizi kaydedin")
+    ok = notifier.send(current_user, "SetPrice Test", "Telegram bildirimleri başarıyla bağlandı! 🎉")
+    if not ok:
+        raise HTTPException(status_code=502, detail="Telegram'a gönderilemedi — bot token veya chat ID'yi kontrol edin")
+    return {"status": "success"}
+
 
 # --- SETS ENDPOINTS ---
 @app.get("/api/sets", response_model=List[schemas.ProductSetDetailed])
@@ -145,6 +197,48 @@ def delete_set(set_id: int, current_user: models.User = Depends(get_current_user
         raise HTTPException(status_code=404, detail="Set bulunamadı")
     crud.delete_set(db, set_id=set_id)
     return {"status": "success", "message": "Set başarıyla silindi"}
+
+
+# --- SET TEMPLATES ---
+@app.get("/api/set-templates", response_model=List[schemas.SetTemplateInfo])
+def get_set_templates_route():
+    return SET_TEMPLATES
+
+
+# --- SET CATEGORIES ENDPOINTS ---
+@app.get("/api/sets/{set_id}/categories", response_model=List[schemas.SetCategoryResponse])
+def get_set_categories_route(set_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_set = crud.get_set_by_id(db, set_id=set_id)
+    if not db_set or db_set.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Set bulunamadı")
+    return crud.get_set_categories(db, set_id=set_id)
+
+@app.post("/api/sets/{set_id}/categories", response_model=schemas.SetCategoryResponse)
+def add_set_category_route(set_id: int, cat_in: schemas.SetCategoryCreate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_set = crud.get_set_by_id(db, set_id=set_id)
+    if not db_set or db_set.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Set bulunamadı")
+    return crud.add_set_category(db, set_id=set_id, name=cat_in.name.strip())
+
+@app.put("/api/sets/{set_id}/categories/{category_id}", response_model=schemas.SetCategoryResponse)
+def rename_set_category_route(set_id: int, category_id: int, cat_in: schemas.SetCategoryUpdate, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_set = crud.get_set_by_id(db, set_id=set_id)
+    if not db_set or db_set.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Set bulunamadı")
+    db_cat = crud.rename_set_category(db, set_id=set_id, category_id=category_id, new_name=cat_in.name.strip())
+    if not db_cat:
+        raise HTTPException(status_code=404, detail="Kategori bulunamadı")
+    return db_cat
+
+@app.delete("/api/sets/{set_id}/categories/{category_id}")
+def delete_set_category_route(set_id: int, category_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_set = crud.get_set_by_id(db, set_id=set_id)
+    if not db_set or db_set.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Set bulunamadı")
+    ok = crud.delete_set_category(db, set_id=set_id, category_id=category_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Kategori bulunamadı")
+    return {"status": "success"}
 
 
 # --- LIBRARY PRODUCTS ENDPOINT ---
@@ -203,7 +297,7 @@ def add_product_to_library_directly(
     domain = scraper._get_domain(url)
     site_cfg = site_configs.get(domain, {})
     
-    product_name = "Yeni Ürün"
+    product_name = "Analiz Ediliyor..."
     category = "Diğer"
     initial_price = None
     
@@ -215,10 +309,22 @@ def add_product_to_library_directly(
         if html:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, "lxml")
+            og_title = soup.find("meta", property="og:title")
+            h1_title = soup.find("h1")
             title_tag = soup.find("title")
-            if title_tag and title_tag.text:
-                product_name = title_tag.text.strip().split("|")[0].split("-")[0].strip()
-                
+            
+            if og_title and og_title.get("content"):
+                product_name = og_title.get("content").strip()
+            elif h1_title and h1_title.text:
+                product_name = h1_title.text.strip()
+            elif title_tag and title_tag.text:
+                raw_title = title_tag.text.strip()
+                # Clean up known store suffixes
+                clean_title = raw_title.split("|")[0].split("-")[0].replace("Amazon.com.tr", "").replace("Trendyol", "").strip()
+                if clean_title:
+                    product_name = clean_title
+                else:
+                    product_name = raw_title
             initial_price = scraper.extract_price(html, site_cfg)
     except Exception as e:
         logger.warning(f"Yeni ürün eklenirken link çözümlenemedi: {e}")
@@ -226,34 +332,16 @@ def add_product_to_library_directly(
         current_seller_val = scraper._infer_seller(url)
         scraper.close()
         
-    category_mapping = {
-        "kulaklık": "Kulaklık", "headset": "Kulaklık", "earphone": "Kulaklık",
-        "mouse": "Mouse", "fare": "Mouse",
-        "klavye": "Klavye", "keyboard": "Klavye",
-        "anakart": "Anakart", "motherboard": "Anakart", "mainboard": "Anakart",
-        "işlemci": "İşlemci", "islemci": "İşlemci", "cpu": "İşlemci",
-        "ekran kartı": "Ekran Kartı", "ekran karti": "Ekran Kartı", "vga": "Ekran Kartı", "gpu": "Ekran Kartı", "graphics card": "Ekran Kartı",
-        "ram": "RAM", "bellek": "RAM", "memory": "RAM",
-        "ssd": "Depolama", "hdd": "Depolama", "harddisk": "Depolama", "depolama": "Depolama",
-        "kasa": "Kasa", "case": "Kasa",
-        "güç kaynağı": "Güç Kaynağı", "guc kaynagi": "Güç Kaynağı", "psu": "Güç Kaynağı", "power supply": "Güç Kaynağı",
-        "soğutma": "Soğutma", "sogutma": "Soğutma", "soğutucu": "Soğutma", "sogutucu": "Soğutma", "cooler": "Soğutma"
-    }
-    
-    lower_name = product_name.lower()
-    for keyword, normalized_cat in category_mapping.items():
-        if keyword in lower_name:
-            category = normalized_cat
-            break
-            
+    category = product_in.category.strip() if product_in.category else infer_category(product_name)
+
     db_lib = crud.get_or_create_library_product(
-        db, 
-        name=product_name[:80], 
-        category=category, 
+        db,
+        name=product_name[:80],
+        category=category,
         original_link=url,
         user_id=current_user.id
     )
-    
+
     if initial_price:
         db_lib.current_price = initial_price
         db_lib.current_seller = current_seller_val
@@ -277,7 +365,7 @@ def add_product_to_set(
     db_set = crud.get_set_by_id(db, set_id=set_id)
     if not db_set or db_set.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Set bulunamadı")
-        
+
     # Kütüphanedeki mevcut ürünü ekleme durumu
     if product_in.library_product_id is not None:
         db_lib = crud.get_library_product_by_id(db, product_in.library_product_id)
@@ -325,7 +413,7 @@ def add_product_to_set(
     domain = scraper._get_domain(url)
     site_cfg = site_configs.get(domain, {})
     
-    product_name = "Yeni Ürün"
+    product_name = "Analiz Ediliyor..."
     category = "Diğer"
     initial_price = None
     
@@ -337,42 +425,40 @@ def add_product_to_set(
         if html:
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(html, "lxml")
+            og_title = soup.find("meta", property="og:title")
+            h1_title = soup.find("h1")
             title_tag = soup.find("title")
-            if title_tag and title_tag.text:
-                product_name = title_tag.text.strip().split("|")[0].split("-")[0].strip()
-                
+            
+            if og_title and og_title.get("content"):
+                product_name = og_title.get("content").strip()
+            elif h1_title and h1_title.text:
+                product_name = h1_title.text.strip()
+            elif title_tag and title_tag.text:
+                raw_title = title_tag.text.strip()
+                clean_title = raw_title.split("|")[0].split("-")[0].replace("Amazon.com.tr", "").replace("Trendyol", "").strip()
+                if clean_title:
+                    product_name = clean_title
+                else:
+                    product_name = raw_title
             initial_price = scraper.extract_price(html, site_cfg)
     except Exception as e:
         logger.warning(f"Yeni ürün eklenirken link çözümlenemedi: {e}")
     finally:
         scraper.close()
         
-    # Kategori tahmini ve normalizasyon
-    category_mapping = {
-        "kulaklık": "Kulaklık", "headset": "Kulaklık", "earphone": "Kulaklık",
-        "mouse": "Mouse", "fare": "Mouse",
-        "klavye": "Klavye", "keyboard": "Klavye",
-        "anakart": "Anakart", "motherboard": "Anakart", "mainboard": "Anakart",
-        "işlemci": "İşlemci", "islemci": "İşlemci", "cpu": "İşlemci",
-        "ekran kartı": "Ekran Kartı", "ekran karti": "Ekran Kartı", "vga": "Ekran Kartı", "gpu": "Ekran Kartı", "graphics card": "Ekran Kartı",
-        "ram": "RAM", "bellek": "RAM", "memory": "RAM",
-        "ssd": "Depolama", "hdd": "Depolama", "harddisk": "Depolama", "depolama": "Depolama",
-        "kasa": "Kasa", "case": "Kasa",
-        "güç kaynağı": "Güç Kaynağı", "guc kaynagi": "Güç Kaynağı", "psu": "Güç Kaynağı", "power supply": "Güç Kaynağı",
-        "soğutma": "Soğutma", "sogutma": "Soğutma", "soğutucu": "Soğutma", "sogutucu": "Soğutma", "cooler": "Soğutma"
-    }
-    
-    lower_name = product_name.lower()
-    for keyword, normalized_cat in category_mapping.items():
-        if keyword in lower_name:
-            category = normalized_cat
-            break
-            
+    # Kategori: kullanıcı verdiyse onu kullan; yoksa önce bu setin kendi
+    # kategori listesiyle, bulamazsa genel elektronik sözlüğüyle tahmin et
+    if product_in.category:
+        category = product_in.category.strip()
+    else:
+        set_category_names = [c.name for c in crud.get_set_categories(db, set_id)]
+        category = infer_category(product_name, known_categories=set_category_names)
+
     # Kütüphaneye kaydet
     db_lib = crud.get_or_create_library_product(
-        db, 
-        name=product_name[:80], 
-        category=category, 
+        db,
+        name=product_name[:80],
+        category=category,
         original_link=url,
         user_id=current_user.id
     )
@@ -463,6 +549,66 @@ def get_product_alternatives(product_id: int, current_user: models.User = Depend
     if not db_product or db_product.product_set.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Ürün bulunamadı")
     return crud.get_alternatives_by_product(db, product_id=product_id)
+
+
+# --- ALERT ENDPOINTS ---
+@app.get("/api/alerts", response_model=List[schemas.AlertResponse])
+def get_alerts(
+    unread_only: bool = False,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return crud.get_alerts(db, user_id=current_user.id, unread_only=unread_only)
+
+@app.get("/api/alerts/count")
+def get_unread_alert_count(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    count = crud.get_unread_alert_count(db, user_id=current_user.id)
+    return {"count": count}
+
+@app.put("/api/alerts/{alert_id}/read")
+def mark_alert_read(
+    alert_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    success = crud.mark_alert_read(db, alert_id=alert_id, user_id=current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Alert bulunamadı")
+    return {"status": "success"}
+
+@app.put("/api/alerts/read-all")
+def mark_all_alerts_read(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    count = crud.mark_all_alerts_read(db, user_id=current_user.id)
+    return {"status": "success", "count": count}
+
+@app.put("/api/library/products/{library_product_id}/threshold")
+def set_price_threshold(
+    library_product_id: int,
+    threshold_in: schemas.AlertThresholdUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    success = crud.set_price_alert_threshold(
+        db, library_product_id=library_product_id,
+        user_id=current_user.id,
+        threshold=threshold_in.price_alert_threshold
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
+    return {"status": "success"}
+
+
+# --- SCRAPER HEALTH (Faz 5 — hafif gözlemlenebilirlik) ---
+@app.get("/api/scraper-health", response_model=List[schemas.DomainHealthResponse])
+def get_scraper_health(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return crud.get_domain_health(db)
+
 
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi import Request

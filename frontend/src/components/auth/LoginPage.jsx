@@ -106,7 +106,7 @@ export default function LoginPage() {
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  color: 'var(--text-muted)',
+                  color: 'var(--color-text-muted)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
