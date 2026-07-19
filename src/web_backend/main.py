@@ -22,10 +22,10 @@ import asyncio
 
 logger = logging.getLogger("setprice.web")
 
-from src.config_loader import ConfigLoader
-from src.scraper import Scraper
-from src.akakce import AkakceSearcher
-from src.logger import setup_logger
+from src.core.config_loader import ConfigLoader
+from src.core.scraper import Scraper
+from src.core.akakce import AkakceSearcher
+from src.core.logger import setup_logger
 
 from .database import engine, Base, get_db, run_lightweight_migrations, SessionLocal
 from . import models, schemas, crud, tasks

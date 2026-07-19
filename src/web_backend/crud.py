@@ -218,11 +218,8 @@ def get_library_products_by_category(db: Session, category: str, user_id: int) -
 def get_or_create_library_product(db: Session, name: str, category: str, original_link: str, user_id: int) -> models.LibraryProduct:
     db_lib = get_library_product_by_link(db, original_link, user_id)
     if not db_lib:
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
         try:
-            from decision_engine import DecisionEngine
+            from src.core.decision_engine import DecisionEngine
             ticker = DecisionEngine().generate_ticker(name, category)
         except Exception:
             import random
@@ -311,10 +308,8 @@ def update_decision_signals(db: Session, library_product_ids: List[int]) -> None
     """Her taramada çalışır: performans skoru (PassMark eşleştirme) ve fiyat
     bazlı erken uyarılar (hedef fiyat, bull-trap, dip bölge). Nihai
     BUY/WAIT/AVOID kararı artık burada üretilmiyor — bkz. update_ai_decisions()."""
-    import sys, os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     try:
-        from decision_engine import DecisionEngine
+        from src.core.decision_engine import DecisionEngine
         engine = DecisionEngine()
     except Exception:
         return
@@ -377,10 +372,8 @@ def update_ai_decisions(db: Session, library_product_ids: List[int]) -> None:
     çağırır. Bir ürün için tüm sağlayıcılar başarısız olursa o ürünün mevcut
     decision_signal/decision_reasoning'i DB'de olduğu gibi bırakılır — boş
     veya şablon bir yorumla ezilmez."""
-    import sys, os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
     try:
-        from ai_decision_engine import generate_ai_decision, has_any_provider_configured
+        from src.core.ai_decision_engine import generate_ai_decision, has_any_provider_configured
     except Exception:
         return
 

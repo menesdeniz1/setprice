@@ -179,3 +179,17 @@ class Alert(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     library_product = relationship("LibraryProduct", back_populates="alerts")
+
+
+class ScanCheckpoint(Base):
+    """Tarama checkpoint'leri — yarıda kalan taramaları kaldığı yerden devam
+    ettirmek için. Her run_once() çağrısı benzersiz bir scan_session_id üretir.
+    Tarama başarıyla tamamlanınca checkpoint'ler temizlenir."""
+    __tablename__ = "scan_checkpoints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scan_session_id = Column(String, index=True, nullable=False)
+    url = Column(String, nullable=False)
+    price = Column(Float, nullable=True)
+    status = Column(String, nullable=True)  # OK / FAILED / FLAGGED
+    created_at = Column(DateTime, default=datetime.utcnow)

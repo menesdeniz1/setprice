@@ -16,29 +16,31 @@ if hasattr(sys.stderr, 'buffer'):
     except:
         pass
 
-from src.config_loader import ConfigLoader
-from src.logger import setup_logger
-from src.excel_handler import ExcelHandler
-from src.migration import Migration
-from src.orchestrator import Orchestrator
+from src.core.config_loader import ConfigLoader
+from src.core.logger import setup_logger
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Fiyat Botu")
-    parser.add_argument("--migrate", action="store_true", help="Excel dosyasını yeni formata geçirir")
+    parser = argparse.ArgumentParser(description="Fiyat Botu — Birleşik CLI")
+    parser.add_argument("--migrate", action="store_true", help="Excel dosyasını yeni formata geçirir ve DB'ye aktarır")
     parser.add_argument("--apply-formulas", action="store_true", help="Migration sırasında setup formüllerini uygular")
-    parser.add_argument("--once", action="store_true", help="Botu tek sefer çalıştırır")
+    parser.add_argument("--once", action="store_true", help="Botu tek sefer çalıştırır (DB merkezli)")
     parser.add_argument("--watch", action="store_true", help="Botu sürekli izleme modunda çalıştırır")
     parser.add_argument("--interval", type=int, default=60, help="İzleme modunda bekleme süresi (dakika)")
-    parser.add_argument("--alternatives-only", action="store_true", help="Sadece muadil (Akakçe) aramasını günceller")
     parser.add_argument("--dry-run", action="store_true", help="Değişiklikleri kaydetmeden çalıştırır")
-    parser.add_argument("--force", action="store_true", help="Hafızayı (checkpoint) yok sayıp sıfırdan taze tarama yapar")
-    parser.add_argument("--status", action="store_true", help="Excel veritabanı durumunu gösterir")
-    parser.add_argument("--add-product", action="store_true", help="Etkileşimli CLI ile yeni ürün ekler")
-    parser.add_argument("--html-report", action="store_true", help="HTML dashboard raporu üretir")
+    parser.add_argument("--force", action="store_true", help="Checkpoint'leri yok sayıp sıfırdan taze tarama yapar")
+    parser.add_argument("--status", action="store_true", help="DB durum bilgisini gösterir")
+    parser.add_argument("--import-excel", action="store_true", help="Excel'den DB'ye toplu ürün aktarır")
+    parser.add_argument("--export-excel", action="store_true", help="DB'den Excel'e güncel verileri yazar")
+    parser.add_argument("--excel-path", type=str, help="Excel dosya yolu (varsayılan: config'ten okunur)")
     
     args = parser.parse_args()
     
-    if not any([args.migrate, args.once, args.watch, args.alternatives_only, args.status, args.add_product, args.html_report]):
+    valid_commands = [
+        args.migrate, args.once, args.watch, args.status,
+        args.import_excel, args.export_excel,
+    ]
+    if not any(valid_commands):
         parser.print_help()
         sys.exit(1)
 
@@ -50,47 +52,39 @@ def main():
         # Logger başlat
         logger = setup_logger(config)
         logger.info("Fiyat Botu başlatılıyor...")
+
+        # Lazy import — CLI komutları
+        from src.cli.commands import (
+            cmd_once, cmd_watch, cmd_status,
+            cmd_import_excel, cmd_export_excel, cmd_migrate,
+        )
         
         # Komutları çalıştır
         if args.migrate:
-            logger.info("=== MIGRATION MODU ===")
-            excel = ExcelHandler(config, logger)
-            excel.load()
-            migration = Migration(excel, config, logger)
-            result = migration.run(apply_formulas=args.apply_formulas, dry_run=args.dry_run)
-            logger.info(f"Migration sonucu: {result}")
+            logger.info("=== MİGRASYON MODU ===")
+            cmd_migrate(config, logger, args)
             
         elif args.once:
-            logger.info("=== TEK SEFERLİK ÇALIŞTIRMA ===")
-            orchestrator = Orchestrator(config, logger)
-            result = orchestrator.run_once(dry_run=args.dry_run, force=args.force)
+            logger.info("=== TEK SEFERLİK ÇALIŞTIRMA (DB Merkezli) ===")
+            result = cmd_once(config, logger, args)
             logger.info(f"Çalıştırma sonucu: {result}")
             
         elif args.watch:
             logger.info(f"=== İZLEME MODU ({args.interval} dk) ===")
-            orchestrator = Orchestrator(config, logger)
-            orchestrator.run_watch(interval_min=args.interval)
-            
-        elif args.alternatives_only:
-            logger.info("=== SADECE MUADİLLER ===")
-            orchestrator = Orchestrator(config, logger)
-            result = orchestrator.run_alternatives_only()
-            logger.info(f"Sonuç: {result}")
+            cmd_watch(config, logger, args)
 
         elif args.status:
             logger.info("=== DURUM BİLGİSİ ===")
-            orchestrator = Orchestrator(config, logger)
-            orchestrator.print_status()
+            cmd_status(config, logger)
 
-        elif args.add_product:
-            logger.info("=== YENİ ÜRÜN EKLEME ===")
-            orchestrator = Orchestrator(config, logger)
-            orchestrator.add_product_interactive()
+        elif args.import_excel:
+            logger.info("=== EXCEL → DB AKTARIMI ===")
+            result = cmd_import_excel(config, logger, args)
+            logger.info(f"Import sonucu: {result}")
 
-        elif args.html_report:
-            logger.info("=== HTML RAPORU OLUŞTURMA ===")
-            orchestrator = Orchestrator(config, logger)
-            orchestrator.generate_html_report()
+        elif args.export_excel:
+            logger.info("=== DB → EXCEL GÜNCELLEME ===")
+            cmd_export_excel(config, logger, args)
             
     except Exception as e:
         print(f"\nBeklenmeyen bir hata oluştu: {e}")
