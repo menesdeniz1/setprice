@@ -29,7 +29,10 @@ def _get_or_create_admin_user(db):
     user = crud.get_user_by_email(db, admin_email)
     if not user:
         from src.web_backend.schemas import UserCreate
-        user = crud.create_user(db, UserCreate(email=admin_email, password="REMOVED_CONFIGURE_EXTERNALLY"))
+        password = os.environ.get("SETPRICE_INITIAL_ADMIN_PASSWORD", "")
+        if len(password) < 16:
+            raise RuntimeError("Set SETPRICE_INITIAL_ADMIN_PASSWORD to a unique password of at least 16 characters before creating the admin account.")
+        user = crud.create_user(db, UserCreate(email=admin_email, password=password))
         print(f"Admin kullanıcısı oluşturuldu: {admin_email}")
     return user
 

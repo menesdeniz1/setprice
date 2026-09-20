@@ -27,13 +27,17 @@ def import_from_excel():
         
     logger.info(f"Excel'den göç başlatılıyor: {workbook_path}")
     
-    # 1. Varsayılan kullanıcıyı oluştur (admin@setprice.com / REMOVED_CONFIGURE_EXTERNALLY)
+    # 1. İlk kullanıcı için parola dış yapılandırmadan sağlanmalıdır.
     default_email = "admin@setprice.com"
     db_user = crud.get_user_by_email(db, default_email)
     if not db_user:
-        user_in = schemas.UserCreate(email=default_email, password="REMOVED_CONFIGURE_EXTERNALLY")
+        password = os.environ.get("SETPRICE_INITIAL_ADMIN_PASSWORD", "")
+        if len(password) < 16:
+            db.close()
+            raise RuntimeError("Set SETPRICE_INITIAL_ADMIN_PASSWORD to a unique password of at least 16 characters before creating the initial account.")
+        user_in = schemas.UserCreate(email=default_email, password=password)
         db_user = crud.create_user(db, user_in)
-        logger.info(f"Varsayılan kullanıcı oluşturuldu: {default_email} (Şifre: REMOVED_CONFIGURE_EXTERNALLY)")
+        logger.info(f"Varsayılan kullanıcı oluşturuldu: {default_email}")
     else:
         logger.info(f"Kullanıcı zaten mevcut: {default_email}")
         

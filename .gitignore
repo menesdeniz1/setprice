@@ -10,3 +10,22 @@ data/
 frontend/node_modules/
 frontend/dist/
 .DS_Store
+
+# Private runtime data must never be committed
+.env
+.env.*
+!.env.example
+!.env.sample
+**/node_modules/
+**/.chrome-profile*/
+**/browser-profile/
+**/screenshots/
+**/logs/
+*.log
+*.jsonl
+*.sqlite*
+*.db
+*.har
+cv.txt
+data/cv.txt
+__pycache__/
