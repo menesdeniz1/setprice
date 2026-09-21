@@ -1,5 +1,9 @@
 # Current maintenance status
 
+Publication scope: experimental source code, not a production-ready hosted service. Nineteen selected offline tests passed during the September 2026 publication pass (price parsing, benchmark helpers, decision logic, manual-price rules, similarity helpers, lowest-price selection and mocked migration logic). Full API, scraping, browser, real-workbook migration and deployment behavior were not validated. Older feature descriptions below describe implementation goals and are not guarantees of retailer compatibility or security.
+
+Use synthetic data first. Keep workbooks, database files and logs outside version control. Only access sites you are authorized to use; do not treat anti-bot tooling as permission to bypass access restrictions. Before any hosting, review authentication, CORS, rate limits and account isolation. Configure a private persistent `JWT_SECRET` for a deployment; without one the server generates a process-local secret, so sessions do not survive restarts consistently.
+
 Hardcoded initial passwords were removed from reachable history. Export SETPRICE_INITIAL_ADMIN_PASSWORD (unique, 16+ characters) before initial account creation; do not commit it. Environment variables are configuration, not encryption. Existing accounts are NOT reset: change their passwords separately. Password storage already uses bcrypt. The legacy Excel importer has not been fully validated.
 
 See [PUBLICATION_NOTES.md](PUBLICATION_NOTES.md).
